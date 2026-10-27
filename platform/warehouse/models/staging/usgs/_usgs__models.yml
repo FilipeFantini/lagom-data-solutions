@@ -10,13 +10,33 @@ models:
         description: USGS event id. The primary key.
         data_tests: [unique, not_null]
       - name: status
-        description: "`reviewed` once a USGS analyst has checked the event, else `automatic`."
+        description: >
+          `reviewed` once a USGS analyst has checked the event, else
+          `automatic`. Lowercased from the source, whose casing varies by
+          network.
         data_tests:
           - accepted_values:
               arguments:
                 values: [reviewed, automatic]
 
 unit_tests:
+  - name: stg_usgs__events_lowercases_status
+    description: >
+      Status arrives in any casing; silver holds it lowercase, and the
+      reviewed flag follows the value, not its spelling.
+    model: stg_usgs__events
+    given:
+      - input: source('usgs', 'events')
+        rows:
+          - {id: ev1, properties__updated: 1, properties__status: REVIEWED}
+          - {id: ev2, properties__updated: 1, properties__status: Automatic}
+          - {id: ev3, properties__updated: 1, properties__status: reviewed}
+    expect:
+      rows:
+        - {event_id: ev1, status: reviewed, is_reviewed: true}
+        - {event_id: ev2, status: automatic, is_reviewed: false}
+        - {event_id: ev3, status: reviewed, is_reviewed: true}
+
   - name: stg_usgs__events_keeps_latest_revision
     description: >
       Three revisions of one event and a second event with one revision: only

@@ -61,8 +61,12 @@ select
     (geometry__coordinates ->> 0)::double precision as longitude,
     (geometry__coordinates ->> 1)::double precision as latitude,
     (geometry__coordinates ->> 2)::double precision as depth_km,
-    properties__status::text as status,
-    properties__status = 'reviewed' as is_reviewed,
+    -- USGS documents lowercase values, but some networks send capitals
+    -- ("REVIEWED" from network pt, first seen 2026-10-27). Lowercased once
+    -- here, so the flag below and every test downstream read one spelling;
+    -- an unknown value still fails the accepted_values test.
+    lower(properties__status)::text as status,
+    lower(properties__status) = 'reviewed' as is_reviewed,
     properties__tsunami = 1 as has_tsunami_flag,
     properties__sig as significance,
     properties__felt as felt_reports,
