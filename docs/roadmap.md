@@ -116,7 +116,7 @@ its own.
 - [ ] Memory limits on k3s's own components (Traefik, local-path,
       metrics-server, servicelb) through `HelmChartConfig`
 - [x] PR workflow active from the first commit (only `main` is watched by Argo
-      CD) — by convention, not enforced; see
+      CD) — enforced by the ruleset on `main` since 2026-10-27; see
       [CONTRIBUTING](../CONTRIBUTING.md#branch-protection)
 - [x] Runbook: bootstrap and deploy sections
 
@@ -284,9 +284,10 @@ by its own trigger, like any other piece.
 - [ ] **Post-deploy verification automated** (sync and health, memory against
       requests, error logs) — when the same manual check has been run after a
       third merge
-- [ ] **Branch protection** — trigger in
-      [CONTRIBUTING](../CONTRIBUTING.md#branch-protection); the prerequisite
-      for any agent merge and for enforcing ADR-0013 rule 2
+- [x] **Branch protection** — ruleset on `main` since 2026-10-27, when the
+      repository became public; what it enforces and what it does not is in
+      [CONTRIBUTING](../CONTRIBUTING.md#branch-protection). The prerequisite
+      for any agent merge
 - [ ] First class of change merged by an agent (documentation is the
       candidate) — by the trigger in the table above
 

@@ -77,26 +77,38 @@ promotion check (prod pins only digests staging pinned first,
 
 ### Branch protection
 
-`main` is **not protected by GitHub**: on a private repository, protection rules
-need a paid plan, and the operator chose not to add a cost (2026-10-13). The
-workflow above — pull requests only, green checks before merge — holds by
-convention. This is an accepted exception to
-[`engineering-protocol.md`](docs/engineering-protocol.md) §10, which asks for
-critical controls enforced outside the agent. **Revisit when** a second developer
-joins (M7) or the repository becomes public, whichever comes first; either makes
-protection free or necessary.
+`main` is protected by a repository ruleset named `main`, enabled on
+2026-10-27 when the repository became public
+([ADR-0017](docs/adr/0017-public-repository-from-a-snapshot.md)). GitHub
+enforces, with no bypass — the operator follows the same rules:
 
-**Accepted technical debt (2026-10-16).** The operator chose to keep the
-repository private knowing that, without protection,
-[ADR-0013](docs/adr/0013-agent-driven-development-guardrails.md) rule 2 holds
-by convention only — the ADR explains why. No agent merges on its own until
-protection exists.
+- changes reach `main` only through a pull request;
+- the six CI checks above must pass, named exactly as their jobs report:
+  `tools (lint, types, tests)`, `services (lint, types, tests)`,
+  `warehouse (lint, parse)`, `secret scan`, `resource budget`, and
+  `promotion (prod pins only staging's digests)` — a renamed job must be
+  renamed in the ruleset too, or every pull request waits for a check that
+  never reports;
+- `main` cannot be force-pushed or deleted.
 
-**The trigger has fired (2026-10-27).** The repository is public
-([ADR-0017](docs/adr/0017-public-repository-from-a-snapshot.md)), so protection
-is free. Enabling it on `main` is step 8 of that ADR's cutover. Until the pull
-request that records the configured rules is merged, the exception and the
-debt above still hold.
+Inspect what applies with
+`gh api repos/FilipeFantini/lagom-data-solutions/rules/branches/main`.
+
+What it does not enforce:
+
+- **Review.** Zero approvals are required: GitHub does not let authors
+  approve their own pull requests, and there is one developer. Revisit when a
+  second developer joins (M7).
+- **A gate approving a change to itself.** A pull request runs the workflow as
+  it edits it, so a change under `.github/workflows/` can change what its own
+  required checks do. Changes to CI, agent definitions, permissions, RBAC, and
+  secrets are therefore merged by the operator, by convention
+  ([ADR-0013](docs/adr/0013-agent-driven-development-guardrails.md) rule 2).
+  No agent merges on its own until rule 3's criteria are met.
+
+Until 2026-10-27 `main` had no protection: on a private repository it needs a
+paid plan, and the operator accepted that as an exception (2026-10-13) and as
+debt for ADR-0013 (2026-10-16).
 
 ## Pull requests
 

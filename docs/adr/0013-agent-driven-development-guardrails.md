@@ -144,3 +144,18 @@ this repository's size.
 
 Reversal: remove agent permissions to merge and return to operator review of
 every pull request. The deterministic gates are worth keeping either way.
+
+## Notes after acceptance
+
+The text above is kept as accepted. These notes record what changed since,
+without rewriting it.
+
+- **2026-10-27 — branch protection is enabled.** The repository became public
+  ([ADR-0017](0017-public-repository-from-a-snapshot.md)), which made it free,
+  and a ruleset on `main` now requires a pull request and the six CI checks.
+  That ends the accepted debt above for the workflow as a whole. It does not
+  make rule 2 enforceable on its own: a pull request runs the workflow as it
+  edits it, so a change to the gates can change what its required checks do.
+  Such changes stay with the operator by convention, and agent merging still
+  waits for rule 3's criteria. Details in
+  [CONTRIBUTING](../../CONTRIBUTING.md#branch-protection).
