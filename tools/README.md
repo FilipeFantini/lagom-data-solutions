@@ -35,12 +35,15 @@ chart repositories), and enforces four rules:
    there by design (Argo CD watching `main` is the GitOps loop); any other
    repository fails until a pinning rule for it exists.
 4. Every container and init container image in the rendered manifests, and a
-   CloudNativePG `Cluster`'s `spec.imageName`, has a tag or a digest, and the
+   CloudNativePG `Cluster`'s `spec.imageName` (required: without it the operator
+   runs its own default image), has a tag or a digest, and the
    tag is not `latest`. Images under `ghcr.io/filipefantini/` must carry a
    digest, as [ADR-0015](../docs/adr/0015-images-on-ghcr.md) requires.
 
 An Application that breaks rule 2 or 3 is reported but not rendered, so its
 images go unchecked until it is fixed; the report names it.
+An Application that renders no manifest at all (an emptied directory, a
+mistyped path) fails, rather than passing with nothing checked.
 
 **What it does not check** (engineering-protocol §18 rule 5), so a green result
 is not read as more than it proves:

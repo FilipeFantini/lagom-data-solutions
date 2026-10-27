@@ -261,8 +261,10 @@ def test_cnpg_own_image_name_without_digest_fails() -> None:
     assert len(found) == 1
 
 
-def test_cnpg_cluster_without_image_name_has_nothing_to_check() -> None:
-    assert manifest_violations("x", cnpg_cluster(None)) == ([], 0)
+def test_cnpg_cluster_without_image_name_is_a_violation() -> None:
+    found, count = manifest_violations("x", cnpg_cluster(None))
+    assert count == 1
+    assert len(found) == 1 and "spec.imageName" in found[0]
 
 
 def test_other_kinds_are_ignored() -> None:
@@ -339,3 +341,11 @@ def test_real_applications_pass_the_application_rules() -> None:
     for app in apps:
         assert prune_violations(app) == []
         assert source_violations(app) == []
+
+
+def test_check_fails_an_application_that_renders_nothing(tmp_path: Path) -> None:
+    write_repo(tmp_path, application(), DEPLOYMENT.format(image="nginx:1.30.5"))
+    (tmp_path / "platform/infra/demo/deployment.yaml").unlink()
+    problems, unrendered, apps, images = check(tmp_path)
+    assert (unrendered, apps, images) == ([], 1, 0)
+    assert problems == ["demo: renders no manifests"]

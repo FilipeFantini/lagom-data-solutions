@@ -17,7 +17,7 @@ Track G). Each turns something a reviewer must remember into a CI gate:
    Argo CD watching main is the GitOps loop. Another repository is a violation
    until a rule for pinning it exists.
 4. Pinned images. Every container and init container image in the rendered
-   manifests, and a CloudNativePG Cluster's spec.imageName, has a tag or a
+   manifests, and a CloudNativePG Cluster's spec.imageName (required), has a tag or a
    digest, and the tag is not `latest`. Images under ghcr.io/filipefantini/
    must carry a digest (name[:tag]@sha256:<64 hex>), as ADR-0015 requires: a
    tag can be moved to other bytes after it was tested.
@@ -139,9 +139,9 @@ def image_violation(image: object) -> str | None:
 def image_references(doc: dict[str, Any]) -> list[tuple[str, object]]:
     """Every image a rendered manifest names: (where, image)."""
     if is_cnpg_cluster(doc):
-        if "imageName" not in doc["spec"]:
-            return []
-        return [("spec.imageName", doc["spec"]["imageName"])]
+        # A missing imageName is a violation, not an absence: the operator
+        # would then run its own default image, which nothing here pins.
+        return [("spec.imageName", doc["spec"].get("imageName"))]
     if doc.get("kind") not in RESIDENT_KINDS | EPHEMERAL_KINDS:
         return []
     spec = pod_spec(doc)
@@ -179,7 +179,12 @@ def check(repo: Path) -> tuple[list[str], list[str], int, int]:
         if broken:
             unrendered.append(name)
             continue
-        for doc in render_application(repo, app):
+        docs = render_application(repo, app)
+        if not docs:
+            # An emptied directory or a mistyped path would otherwise pass
+            # with nothing checked.
+            problems.append(f"{name}: renders no manifests")
+        for doc in docs:
             found, count = manifest_violations(f"{name}/{doc.get('kind')}/{_name(doc)}", doc)
             problems += found
             images += count
