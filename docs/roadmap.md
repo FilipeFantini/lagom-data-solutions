@@ -288,11 +288,15 @@ by its own trigger, like any other piece.
       reading; today they are instruction only. **Trigger reached
       2026-10-27:** agents create on-demand Jobs in staging
       (`kubectl create job`, a runbook step) to validate a promotion
-- [ ] **Manifest policy check in CI**, in `tools/` beside the budget check:
+- [x] **Manifest policy check in CI**, in `tools/` beside the budget check:
       pinned chart and image versions, an explicit prune policy on every
       Application — with the next Argo CD Application (the Postgres `Cluster`).
       **Trigger reached in M2:** the Postgres Applications exist; the check
-      does not
+      does not. Done in [`tools/manifest_policy.py`](../tools/manifest_policy.py):
+      the four rules and what the check does not cover are in
+      [`tools/README.md`](../tools/README.md#manifest-policy-check). The
+      `manifest policy` job is required only once the operator adds it to the
+      `main` ruleset
 - [ ] Data gates — `dbt test` and reconciliation in CI are M2 and M3 items
       above, not repeated here
 - [x] **CI check that prod only pins a digest staging ran** —
