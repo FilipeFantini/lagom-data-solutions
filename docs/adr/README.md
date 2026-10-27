@@ -31,10 +31,11 @@ decision, consequences, and how to reverse it.
 | [0009](0009-argocd-bootstrap-and-self-management.md) | Argo CD: pinned Helm chart, app of apps, self-managed | Accepted, decision 4 superseded by 0017 |
 | [0010](0010-sealed-secrets.md) | Sealed Secrets for secrets in Git, key renewal off | Accepted |
 | [0011](0011-memory-viability-on-4gb.md) | Memory viability on the 4 GB node, measured before M2 | Accepted, decision 3 superseded by 0016 |
-| [0012](0012-cloudnative-pg.md) | CloudNativePG runs Postgres; backup mechanism chosen at its trigger | Accepted |
+| [0012](0012-cloudnative-pg.md) | CloudNativePG runs Postgres; backup mechanism chosen at its trigger | Accepted, partially superseded by 0019 |
 | [0013](0013-agent-driven-development-guardrails.md) | Agent-driven development behind enforced guardrails | Accepted |
 | [0014](0014-develop-against-staging.md) | Develop against staging, with no local services | Accepted |
 | [0015](0015-images-on-ghcr.md) | Images built in CI, published privately to GHCR, promoted by digest | Accepted |
 | [0016](0016-ci-ceiling-2-2-gb.md) | CI ceiling lowered to 2.2 GB from the measured overhead | Accepted |
 | [0017](0017-public-repository-from-a-snapshot.md) | Publish as a new public repository from a single-commit snapshot | Accepted |
 | [0018](0018-pipeline-heartbeat.md) | Pipeline liveness by heartbeat to Healthchecks.io | Accepted |
+| [0019](0019-postgres-backup-deferred.md) | Postgres backup deferred until the node holds state no source can rebuild | Accepted |

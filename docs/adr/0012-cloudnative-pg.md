@@ -1,6 +1,7 @@
 # ADR-0012 — CloudNativePG runs Postgres; backup mechanism chosen at its trigger
 
-- **Status:** Accepted
+- **Status:** Accepted — partially superseded by [ADR-0019](0019-postgres-backup-deferred.md)
+  (when the backup is built; the choice of mechanism stands)
 - **Date:** 2026-10-16
 
 ## Context and problem
