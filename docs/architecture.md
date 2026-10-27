@@ -234,7 +234,8 @@ not take this role.
 operator in `cnpg-system` reconciles each committed `Cluster` object into
 Postgres Pods, disks, Services, and credentials. Roles, databases, and the
 pooler are declared the same way when their triggers arrive. Backup is not
-configured until the backup trigger (end of M2); the options and their resident
+configured until the backup trigger
+([ADR-0019](adr/0019-postgres-backup-deferred.md)); the options and their resident
 cost are compared in the ADR.
 
 **Credentials.** The prod `Cluster` ([`platform/infra/postgres-prod/`](../platform/infra/postgres-prod/cluster.yaml))
@@ -1186,9 +1187,11 @@ not.
 ### Sections to fill as the platform is built
 
 - **Backup and restore** — what is backed up, where, how often, and the
-  **measured** restore procedure. (M2)
-- **Disaster recovery** — rebuild from Git plus the latest backup, with measured
-  RTO. (M2)
+  **measured** restore procedure. (at the backup trigger,
+  [ADR-0019](adr/0019-postgres-backup-deferred.md))
+- **Disaster recovery** — rebuild from Git, then re-load bronze from USGS and
+  run `dbt build`, with measured RTO; from Git plus the latest backup once one
+  exists. (M2)
 - **Secret rotation** — how to rotate a source credential and a database
   password. (M2)
 - **On failure** — where to look: Argo CD sync state, Dagster run history, pod

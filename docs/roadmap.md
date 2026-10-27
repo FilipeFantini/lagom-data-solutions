@@ -16,7 +16,7 @@ dbt, Postgres, Dagster.
 | Piece | Enters when |
 |---|---|
 | `staging` namespace | M2 — once there is something to promote |
-| Postgres backup | there is real data (end of M2) |
+| Postgres backup | Postgres holds state no source can rebuild (Dagster's metastore in M3, a non-replayable source in M5), or the first external reader (M4) — [ADR-0019](adr/0019-postgres-backup-deferred.md) |
 | Lakehouse: object storage, open table format, DuckDB | a measured limit of Postgres, a file-shaped source, or a consumer that needs files — [ADR-0008](adr/0008-postgres-for-all-layers.md) |
 | Second VPS (real environment isolation) | a real client |
 | Terraform for resources outside the cluster (Hetzner server and firewall, Tailscale ACL, Cloudflare DNS and Access) | the M2 disaster-recovery drill, which rebuilds the node, or a second VPS — whichever comes first. An ADR at entry settles the state backend, which resources Terraform owns, and the hand-off to Argo CD |
@@ -71,7 +71,7 @@ Re-introducing a practice excluded in
 | Cloud config | [runbook](architecture.md#provision-the-node-m0) | creates a personal sudo user, disables root and password login |
 | Volume | no | 40 GB local is enough for megabytes in Postgres; disk pressure is a lakehouse trigger ([ADR-0008](adr/0008-postgres-for-all-layers.md)) |
 | Firewall | yes — inbound port 22 from the operator's IP only, until Tailscale is verified; then **no inbound rules** | runs outside the VM, so no RAM cost. **Never expose 6443.** Tailscale and Cloudflare Tunnel are outbound, so inbound drops to zero ([runbook](architecture.md#tailscale-acl-and-zero-inbound-ports-m1)) |
-| Backups | no | VM rollback is not needed: the machine is reproducible from Git. What is not reproducible is Postgres, covered by `pg_dump` to a destination off the node |
+| Backups | no | VM rollback is not needed: the machine is reproducible from Git. Postgres today holds only data a re-load from the source rebuilds; its backup enters by its own trigger ([ADR-0019](adr/0019-postgres-backup-deferred.md)) |
 | Placement group | no | only spreads multiple servers across physical hosts |
 | Labels | `project=lagom`, `env=shared`, `role=k3s-server` | free, and saves effort in the CLI and the invoice |
 | Name | `lagom-shared-01` | `<project>-<environment>-<index>`. The node hosts both the prod and the staging namespace ([ADR-0007](adr/0007-three-environments.md)), so it is `shared`; `lagom-prod-01` is left for a dedicated prod node |
@@ -189,24 +189,27 @@ passes.
       on 2026-10-27 that alerted nobody. Verified 2026-10-27: staging on
       demand (`heartbeat sent: HTTP 200`), prod's 12:00 run (`ingest`,
       `transform` and `heartbeat` all exit 0, in 18 s)
-- [ ] **Postgres backup** to a destination off the node, on a schedule — the
-      destination is chosen then; R2's free tier is the candidate. The
-      mechanism too, measured on the node: Barman Cloud Plugin (needs
-      cert-manager), the deprecated in-core backup, or a `pg_dump` CronJob —
-      [ADR-0012](adr/0012-cloudnative-pg.md)
-- [ ] Runbook: backup, restore, disaster recovery, secret rotation — with
+- [ ] Runbook: disaster recovery and secret rotation — recovery is a rebuild
+      from Git and a re-load of bronze from USGS, run once in a drill with
       measured RTO
+      ([ADR-0019](adr/0019-postgres-backup-deferred.md)); backup and restore
+      join it when the backup exists
 
-Backup was pulled forward from M7: all infrastructure is in Git and
-reproducible, but Postgres state is not. If the node dies, gold and Dagster
-history are lost.
+The Postgres backup left M2 on 2026-10-27
+([ADR-0019](adr/0019-postgres-backup-deferred.md)): everything in Postgres today
+is a copy of data USGS keeps, so a re-load rebuilds it. It enters by its
+trigger in the table above — at the latest with Dagster's metastore in M3. The
+mechanism and destination are still chosen then, measured on the node
+([ADR-0012](adr/0012-cloudnative-pg.md)).
 
 ## M3 — Dagster takes over
 
 Replace the CronJob with assets, lineage, and declarative retries. The native
 dlt integration makes each pipeline an asset without glue code.
 
-- [ ] Dagster with Postgres metastore
+- [ ] Dagster with Postgres metastore — its run history exists only on the
+      node, so the Postgres backup comes first
+      ([ADR-0019](adr/0019-postgres-backup-deferred.md))
 - [ ] dlt and dbt assets
 - [ ] Native failure alerting
 - [ ] `dbt test` in CI
@@ -233,7 +236,9 @@ Second source, now continuous events. Candidates in
 This is where the platform proves it grows by composition: **if adding a source
 is only new configuration, the design worked.**
 
-- [ ] Redpanda Connect with the second source
+- [ ] Redpanda Connect with the second source — if the source does not keep
+      its history, the Postgres backup comes first
+      ([ADR-0019](adr/0019-postgres-backup-deferred.md))
 - [ ] Collector running on the Pi as an agent node. k3s currently advertises
       the node's public IP and runs flannel on the public interface; a node
       joining over Tailscale needs flannel on `tailscale0` (`node-ip`,
@@ -280,10 +285,14 @@ by its own trigger, like any other piece.
       [CONTRIBUTING](../CONTRIBUTING.md#workflow)
 - [ ] **Deny rules for cluster writes** (`kubectl apply`, `delete`, `exec`
       outside the runbook) — when an agent first needs cluster access beyond
-      reading; today they are instruction only
+      reading; today they are instruction only. **Trigger reached
+      2026-10-27:** agents create on-demand Jobs in staging
+      (`kubectl create job`, a runbook step) to validate a promotion
 - [ ] **Manifest policy check in CI**, in `tools/` beside the budget check:
       pinned chart and image versions, an explicit prune policy on every
-      Application — with the next Argo CD Application (the Postgres `Cluster`)
+      Application — with the next Argo CD Application (the Postgres `Cluster`).
+      **Trigger reached in M2:** the Postgres Applications exist; the check
+      does not
 - [ ] Data gates — `dbt test` and reconciliation in CI are M2 and M3 items
       above, not repeated here
 - [x] **CI check that prod only pins a digest staging ran** —
@@ -293,7 +302,9 @@ by its own trigger, like any other piece.
       reaches the cluster ([ADR-0015](adr/0015-images-on-ghcr.md))
 - [ ] **Post-deploy verification automated** (sync and health, memory against
       requests, error logs) — when the same manual check has been run after a
-      third merge
+      third merge. **Trigger reached 2026-10-27:** Argo CD sync and health, the
+      pinned digest in the CronJob, and a run's exit codes and dbt result were
+      checked by hand after public PRs #7, #8, #11 and #12
 - [x] **Branch protection** — ruleset on `main` since 2026-10-27, when the
       repository became public; what it enforces and what it does not is in
       [CONTRIBUTING](../CONTRIBUTING.md#branch-protection). The prerequisite
