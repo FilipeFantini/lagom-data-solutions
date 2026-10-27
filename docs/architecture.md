@@ -287,7 +287,7 @@ Three, decided in [ADR-0007](adr/0007-three-environments.md).
 | Environment | Where | What runs there |
 |---|---|---|
 | `dev` | code on the operator's machine, data in staging | dbt and dlt run from the machine's `uv` environments against the `lagom_dev` database in staging's Postgres, through `kubectl port-forward` over the tailnet; unit tests need no database; manifests are checked with a server-side dry run ([ADR-0014](adr/0014-develop-against-staging.md)) |
-| `staging` | namespace on the node | own Postgres `Cluster` mirroring prod's configuration, holding two databases: `lagom` for staging's pipeline and `lagom_dev` for the developer, who cannot connect to `lagom`; own secrets; a ResourceQuota (768Mi of memory requests, 1536Mi of limits, 10 Pods) and a LimitRange ([`platform/infra/postgres-staging/`](../platform/infra/postgres-staging/)); the pipeline as one CronJob, `usgs-pipeline` ([`cronjob-usgs.yaml`](../platform/infra/postgres-staging/cronjob-usgs.yaml)): dlt as an init container, then dbt, applied by Argo CD from `main` and pinned to staging's image digests ([ADR-0015](adr/0015-images-on-ghcr.md)). **No Dagster** — two orchestrators exceed the ceiling |
+| `staging` | namespace on the node | own Postgres `Cluster` mirroring prod's configuration, holding two databases: `lagom` for staging's pipeline and `lagom_dev` for the developer, who cannot connect to `lagom`; own secrets; a ResourceQuota (768Mi of memory requests, 1536Mi of limits, 10 Pods) and a LimitRange ([`platform/infra/postgres-staging/`](../platform/infra/postgres-staging/)); the pipeline as one CronJob, `usgs-pipeline` ([`cronjob-usgs.yaml`](../platform/infra/postgres-staging/cronjob-usgs.yaml)): dlt, then dbt, as init containers, then a heartbeat ping to Healthchecks.io ([ADR-0018](adr/0018-pipeline-heartbeat.md)), applied by Argo CD from `main` and pinned to staging's image digests ([ADR-0015](adr/0015-images-on-ghcr.md)). **No Dagster** — two orchestrators exceed the ceiling |
 | `prod` | namespace on the node | the full stack |
 
 **Promotion** is by image digest: staging and prod each pin their own, so a new
@@ -313,8 +313,10 @@ the base, run as UID 10001 on a read-only root filesystem, and write only under
 52 s. Both packages are private: an anonymous manifest request to ghcr.io
 returns HTTP 403 (checked 2026-10-17; the same request against a public image
 succeeds). Staging's and prod's CronJob `usgs-pipeline` runs them
-every 30 minutes: the dlt image as an init container and the dbt image as the
-main container, so dbt starts only if the load exited 0. It pulls from GHCR with
+every 30 minutes, dbt starting only if the load exited 0. In staging both are
+init containers and a `heartbeat` container pings Healthchecks.io only if both
+exited 0 ([ADR-0018](adr/0018-pipeline-heartbeat.md)); prod keeps dlt as the
+init container and dbt as the main container until its own change. It pulls from GHCR with
 the sealed `ghcr-pull` Secret, which the operator adds to the same directory.
 
 Staging is real rather than nominal because of four enforced conditions: its own
@@ -507,10 +509,10 @@ That leaves **~0.25 GB** for jobs. Staging's ResourceQuota caps what its jobs
 can request at 768 MiB in all, Postgres included.
 dlt and dbt do not appear above: they are ephemeral jobs, and their requests
 count against what is left. In staging they are one Pod, the CronJob
-`usgs-pipeline`: dlt (init container) and dbt (container) each request 256 MiB
-and run one after the other, so the Pod requests 256 MiB, not 512 (a Pod's
-request is the larger of its biggest init container and the sum of its regular
-ones). Prod runs the same Pod on the same schedule, so at :00 and :30 both
+`usgs-pipeline`: dlt and dbt each request 256 MiB and run one after the other
+as init containers, and the `heartbeat` container requests 32 MiB, so the Pod
+requests 256 MiB, not 544 (a Pod's request is the larger of its biggest init
+container and the sum of its regular ones). Prod runs the same Pod on the same schedule, so at :00 and :30 both
 are placed together, and a run started by hand can land on either. The CI
 check therefore adds every ephemeral job rather than taking the largest: until
 2026-10-19 it took the largest, which left out the second pipeline's 256 MiB
@@ -1167,6 +1169,10 @@ A Healthchecks.io ping URL is `https://hc-ping.com/` (20 characters) plus a
 
 **Verify** after the change reaches the namespace: the next run's `heartbeat`
 log says `heartbeat sent: HTTP 200`, and the check turns *up* in the console.
+The container's 32 MiB request and 64 MiB limit are starting figures: read its
+memory with `kubectl top pod --containers` during a run and correct them. An
+`OOMKilled` heartbeat fails the Job, and after the retry the check goes quiet:
+an alarm for a run that worked.
 
 **When the e-mail arrives**, the check went quiet: read the Jobs and the logs
 above. No Job at all means the CronJob is not scheduling or the node is down;

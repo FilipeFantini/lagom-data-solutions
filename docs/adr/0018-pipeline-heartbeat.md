@@ -119,7 +119,7 @@ The main risk is an alert nobody reads. The e-mail goes to the operator's
 account address; whether it reaches a phone is the operator's setting, outside
 this repository.
 
-Reversal: delete the `heartbeat` container and the two sealed files, move
+Reversal: delete the `heartbeat` container and the sealed files, move
 `transform` back to a regular container, and delete the checks. Dagster's
 alerting (M3) is expected to supersede this decision; the trigger to revisit
 is M3 starting.

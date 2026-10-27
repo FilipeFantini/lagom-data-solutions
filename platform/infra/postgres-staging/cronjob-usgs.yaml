@@ -231,7 +231,8 @@ spec:
                       key: url
               resources:
                 # One HTTPS request from Python: 32Mi is a starting figure,
-                # replaced from `kubectl top` on the first runs (runbook).
+                # corrected from `kubectl top pod --containers` on the first
+                # runs (runbook, Pipeline heartbeat).
                 requests:
                   cpu: 10m
                   memory: 32Mi
