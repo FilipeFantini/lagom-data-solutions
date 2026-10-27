@@ -42,6 +42,7 @@ fails.
 | Contract | `_seismic__models.yml` | both gold models: column names and types are compared with the SQL before the table is written |
 | Generic | the `_*__models.yml` files | `unique`, `not_null`, `accepted_values` on keys and classes; `value_between` (`tests/generic/`) on latitude and longitude |
 | Reconciliation | `tests/reconcile_*.sql` | silver rows equal distinct ids in bronze; gold rows equal silver earthquakes; the daily counts add up to gold rows; no gold id is missing from silver |
+| Privileges | `tests/gold_reader_privileges.sql` | `gold_reader` can read every gold relation and use the `gold` schema, reads nothing in bronze or silver, and writes nowhere — checked in the database's catalogue, after both gold models are built |
 | Unit | `unit_tests:` in the model files | given rows and expected rows: latest revision, region parsing, type conversion, class boundaries, UTC day boundary |
 | Freshness | `_usgs__sources.yml` | newest `updated` in bronze: warn after 2 hours, error after 6. **Run separately**, `dbt source freshness`; `dbt build` does not |
 
