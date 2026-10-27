@@ -53,8 +53,8 @@ valid and expected outcome.
 
 Run what proves or disproves a suspicion. Cheap, read-only commands only:
 `helm template`, `uv run --project tools --locked …` (ruff, mypy, pytest,
-`python tools/resource_budget.py`), `kubectl get`, `kubectl apply
---dry-run=server`, `gh pr checks`. Never a command that mutates the cluster, the
+`python tools/resource_budget.py`), `kubectl get`, `kubectl diff -n
+<namespace> -f`, `gh pr checks`. Never a command that mutates the cluster, the
 repository, or GitHub. **Never read Secret objects** (`get`/`describe secret`,
 or `-o yaml` on anything that embeds one): their values are only base64.
 

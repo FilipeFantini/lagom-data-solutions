@@ -286,11 +286,12 @@ by its own trigger, like any other piece.
       `git checkout -- .` (archive PR #18). Claude Code cannot scope rules to one
       agent, so they bind every session; see
       [CONTRIBUTING](../CONTRIBUTING.md#workflow)
-- [ ] **Deny rules for cluster writes** (`kubectl apply`, `delete`, `exec`
-      outside the runbook) — when an agent first needs cluster access beyond
-      reading; today they are instruction only. **Trigger reached
-      2026-10-27:** agents create on-demand Jobs in staging
-      (`kubectl create job`, a runbook step) to validate a promotion
+- [x] **Deny rules for cluster writes** — `kubectl` verbs that change or
+      enter objects, file-based `create`, and `helm` writes are denied in
+      `.claude/settings.json`; `create job --from=cronjob/…` stays allowed for
+      on-demand runs. Triggered 2026-10-27, when agents first created Jobs to
+      validate a promotion. What it does not stop is in
+      [CONTRIBUTING](../CONTRIBUTING.md#workflow)
 - [x] **Manifest policy check in CI**, in `tools/` beside the budget check:
       pinned chart and image versions, an explicit prune policy on every
       Application — with the next Argo CD Application (the Postgres `Cluster`).
