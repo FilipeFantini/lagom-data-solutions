@@ -164,7 +164,11 @@ passes.
       peak 87 MiB in staging during `dbt build` at 10k rows
 - [x] CronJob running dlt and dbt — staging verified 2026-10-18 (9,929 events,
       dbt PASS=32, 37 s); prod promoted with the same digests
-- [ ] Read-only roles in Postgres (RLS comes later)
+- [x] Read-only roles in Postgres (RLS comes later) — group role
+      `gold_reader` in both Clusters, granted by dbt on every build and
+      asserted by a data test; staging verified 2026-10-27 (dbt PASS=34,
+      `gold_reader_privileges` included), prod promoted with the same digest.
+      No consumer login role exists yet
 - [x] Reconciliation tests between layers — bronze → silver → gold → daily
       aggregate, as dbt singular tests
 - [x] `staging` namespace with its own Postgres, ResourceQuota, LimitRange,
