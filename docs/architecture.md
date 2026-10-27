@@ -396,10 +396,14 @@ validates a JWT and mints the URL on demand.
 
 **How the read-only role is built.** Each `Cluster` declares a group role,
 `gold_reader`: NOLOGIN, so it cannot connect, and no attribute beyond the
-default. **Not yet granted:** the privileges are to come from dbt, which will
-grant `SELECT` on every gold model and `USAGE` on the `gold` schema each time
-it builds one, since a rebuilt table loses the grants of the one it replaces.
-Until then the role exists and can read nothing. A consumer gets its own login role inside that group
+default. Its privileges come from dbt (`platform/warehouse/dbt_project.yml`),
+which grants `SELECT` on every gold model and `USAGE` on the `gold` schema each
+time it builds one, since a rebuilt table loses the grants of the one it
+replaces; a missing role fails the build. An environment holds these grants
+only once its CronJob pins a warehouse image built with that configuration;
+until then the role exists there and can read nothing. A data test checks the outcome in the
+catalogue: gold readable, bronze and silver not, nothing writable
+([warehouse README](../platform/warehouse/README.md)). A consumer gets its own login role inside that group
 (`inRoles: [gold_reader]` in the `Cluster`, with its own sealed password), so
 each one is revoked alone. No consumer exists yet, so no login role does.
 

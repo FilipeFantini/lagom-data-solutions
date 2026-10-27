@@ -15,3 +15,14 @@ models:
     marts:
       +materialized: table
       +schema: gold
+      # The read-only group of every gold consumer (architecture.md §10). A
+      # `table` model is rebuilt on each run, and the new table has none of
+      # the old one's grants, so they are re-applied here on every build:
+      # dbt's `grants` issues SELECT after the table is created, and the
+      # post-hook gives USAGE on the schema, without which SELECT is refused.
+      # The role is declared in both Postgres Clusters; if it is missing the
+      # GRANT fails the build, loudly.
+      # tests/gold_reader_privileges.sql asserts the result.
+      +grants:
+        select: ["gold_reader"]
+      +post-hook: "grant usage on schema {{ this.schema }} to gold_reader"
