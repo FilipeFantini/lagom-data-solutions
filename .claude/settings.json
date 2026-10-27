@@ -83,7 +83,22 @@
       "Bash(helm install *)",
       "Bash(helm upgrade *)",
       "Bash(helm uninstall *)",
-      "Bash(helm rollback *)"
+      "Bash(helm rollback *)",
+      "Bash(helm * install *)",
+      "Bash(helm * upgrade *)",
+      "Bash(helm * uninstall *)",
+      "Bash(helm * rollback *)",
+      "Bash(kubectl create --filename*)",
+      "Bash(kubectl * create --filename*)",
+      "Bash(kubectl create -k *)",
+      "Bash(kubectl * create -k *)",
+      "Bash(kubectl create job * --image*)",
+      "Bash(kubectl * create job * --image*)",
+      "Bash(argocd app sync *)",
+      "Bash(argocd app delete *)",
+      "Bash(argocd app set *)",
+      "Bash(argocd app rollback *)",
+      "Bash(argocd app terminate-op *)"
     ]
   }
 }

@@ -40,7 +40,8 @@ with the attribution line the brief gives. **Do not push, open PRs, or merge.**
 Never discard work to undo a step — commit, or edit the file back; the git
 commands that discard work are denied in `.claude/settings.json`.
 The cluster is read-only for you: `kubectl get`, `describe`, `logs`, `top`, and
-`apply --dry-run=server` only. **Never read Secret objects** (`get`/`describe
+`kubectl diff -n <namespace> -f` only (`apply`, even with `--dry-run`, is
+denied in `.claude/settings.json`). **Never read Secret objects** (`get`/`describe
 secret`, or `-o yaml` on anything that embeds one): their values are only
 base64, and would land in your report.
 
@@ -51,7 +52,7 @@ Run every check that applies, and record the real output:
 - `uv run --project tools --locked ruff format --check tools`, `ruff check
   tools`, `mypy tools`, `pytest tools`
 - `uv run --project tools --locked python tools/resource_budget.py`
-- `helm template` / `kubectl apply --dry-run=server` for manifests
+- `helm template` / `kubectl diff -n <namespace> -f` for manifests
 - the acceptance criteria in the brief, one by one
 
 A check that cannot run here is reported as not run, with the reason — never
