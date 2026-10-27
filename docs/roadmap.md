@@ -16,7 +16,7 @@ dbt, Postgres, Dagster.
 | Piece | Enters when |
 |---|---|
 | `staging` namespace | M2 — once there is something to promote |
-| Postgres backup | Postgres holds state no source can rebuild (Dagster's metastore in M3, a non-replayable source in M5), or the first external reader (M4) — [ADR-0019](adr/0019-postgres-backup-deferred.md) |
+| Postgres backup | Postgres holds state no source can rebuild (Dagster's metastore in M3, a non-replayable source in M5), or the first external reader (M4) — [ADR-0019](adr/0019-postgres-backup-deferred.md); accepted as debt, [architecture.md §12](architecture.md#12-accepted-risks) |
 | Lakehouse: object storage, open table format, DuckDB | a measured limit of Postgres, a file-shaped source, or a consumer that needs files — [ADR-0008](adr/0008-postgres-for-all-layers.md) |
 | Second VPS (real environment isolation) | a real client |
 | Terraform for resources outside the cluster (Hetzner server and firewall, Tailscale ACL, Cloudflare DNS and Access) | the M2 disaster-recovery drill, which rebuilds the node, or a second VPS — whichever comes first. An ADR at entry settles the state backend, which resources Terraform owns, and the hand-off to Argo CD |
@@ -29,7 +29,7 @@ dbt, Postgres, Dagster.
 | Row Level Security | second consumer with segregated data |
 | PostgREST | first API requirement |
 | Metabase (+ 8 GB VPS) | a client needs ad-hoc exploration |
-| 8 GB node (CAX21) | a planned M3 or M5 component does not fit under the 2.2 GB ceiling after tuning — projected for Dagster in M3 ([ADR-0016](adr/0016-ci-ceiling-2-2-gb.md)) |
+| 8 GB node (CAX21) | **decided 2026-10-27** for M3 ([ADR-0020](adr/0020-move-to-the-8-gb-node.md)); waiting on Hetzner capacity for the resize |
 | In-cluster policy engine (Kyverno, Gatekeeper) | a second writer to the cluster besides Argo CD — [ADR-0013](adr/0013-agent-driven-development-guardrails.md) |
 | Automated staging digest bump (bot commit after a build) | manual staging bumps become routine, and the bot meets [ADR-0013](adr/0013-agent-driven-development-guardrails.md) rule 3 for infrastructure manifests — [ADR-0015](adr/0015-images-on-ghcr.md) |
 | Run jobs without an own image (official `uv` image, clone at run time) | GitHub announces billing for Container registry storage or bandwidth — [ADR-0015](adr/0015-images-on-ghcr.md) |
