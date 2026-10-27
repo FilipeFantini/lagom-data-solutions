@@ -113,9 +113,8 @@ enforces, with no bypass — the operator follows the same rules:
   `warehouse (lint, parse)`, `secret scan`, `resource budget`,
   `promotion (prod pins only staging's digests)`, and `manifest policy` — a
   renamed job must be renamed in the ruleset too, or every pull request waits
-  for a check that never reports. **`manifest policy` is required only after
-  the operator adds it to the ruleset**; the job runs and reports before that,
-  but nothing blocks a merge on it;
+  for a check that never reports (`manifest policy` joined the ruleset on
+  2026-10-27);
 - `main` cannot be force-pushed or deleted.
 
 Inspect what applies with
