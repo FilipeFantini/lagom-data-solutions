@@ -85,3 +85,23 @@ checking that the volumes stay bound before merging.
 Reversal: remove the entries from `disable:`, restart k3s, and delete the two
 Applications with prune off, then remove their objects by hand. k3s re-installs
 its addons on start.
+
+## Notes after acceptance
+
+The text above is kept as accepted. These notes record what changed since,
+without rewriting it.
+
+- **2026-10-27 — the switch, as run.** k3s restarted at 16:44 UTC with the
+  `disable:` list; it removed local-path's and metrics-server's objects, the
+  StorageClass and the metrics APIService, and both PersistentVolumes stayed
+  `Bound` with both Postgres Clusters healthy throughout. #16 was merged at
+  16:45 and Argo CD had both Applications `Synced/Healthy` about 150 s later.
+  **One step the order above did not foresee:** k3s uninstalls Traefik with
+  `helm uninstall --wait`, and the Traefik Service, type LoadBalancer, kept
+  the `service.kubernetes.io/load-balancer-cleanup` finalizer, which only
+  servicelb removes — and servicelb was disabled in the same restart. The
+  uninstall hung until the finalizer was removed by hand
+  (`kubectl -n kube-system patch svc traefik --type=merge -p
+  '{"metadata":{"finalizers":null}}'`); Traefik, its HelmCharts and CRDs were
+  then gone. Disabling servicelb while a LoadBalancer Service exists needs
+  that step.
