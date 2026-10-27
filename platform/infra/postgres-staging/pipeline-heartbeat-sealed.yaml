@@ -1,0 +1,13 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: pipeline-heartbeat
+  namespace: staging
+spec:
+  encryptedData:
+    url: AgCMYRVb91jF+YJBo8gFx/zIPdlYrsVZoclPnmcYwHwHcTAqQr1gXUYQoNxXLJsdymb6tTZhm18FLnqULChQZjVhtXT4MWe2CowFx6mxQuJWYB2WECzw6PYw11JGoAWCTTll/uTLIor2oKH27rfyaup5L382YYFshrXdq93e8Q2VRtzoZEfjmppgqbXShvNbGEnFfCVK9XjdNfuEVLsiIIuNl2Hk3vgntLfmez3qqC3EPYMai1bukcGxwDWzjT/gcujBttJwfE5oobJSKExlzqLRo7qMBC1BvBI6k3Xbq9acUqPUcSwH0IQnKhMi6PnpwdG0yjY9jyT4uZJXMH4JFXZE28yHi1MashbW+44sMJVfd3fF23IoN5gI5rIMqBNt2HDqohnQOBjXq/ApKj0Fe4bR1GeQrykoDczKJcViQdPIgELN2HPiZk956gHU0FuDd8iaTdorSFFkXHVQwPg1tpkLuKS9kFYz0IlsWVbaWUNtBeQ1G/J+RJrRYM8wQTBkD1UshXJ3vX3Rcf/H//l+c8NQKnFb2gqAHf6YRRDnlHo0mUVbN6SDM8mDaSnY1GbRiqggc/H4Pq733QPoTP4mLIaSA1zZNzmCOJncdzT8agIVqtcC8ZjpW2dzlbGt2qd/4wcHw4RGMoXd8esZrAmlCSJzaJYmL9nOhPWjm1nTNptAjYYfkgJsAJXuZPdwfTnkCAuXOR1PdbL0tPGOuRWGVzWSSHGlLbE1gFuJn8lDYeT5Y3WCfIDwjHZBs74LI+tACQtPHl97Id0xsw==
+  template:
+    metadata:
+      name: pipeline-heartbeat
+      namespace: staging

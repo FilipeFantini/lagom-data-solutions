@@ -70,8 +70,8 @@ Cost: EUR 7.37/month for the node, as shown in the Hetzner Console on
 trigger; the prices checked for that moment are in ADR-0008.
 
 **Outside the cluster, principle 3 does not hold yet.** The server, its
-firewall, and the Tailscale ACL are created by hand, following the runbook
-(§13); the domain's zone at Cloudflare was set up by
+firewall, the Tailscale ACL, and the Healthchecks.io checks are created by
+hand, following the runbook (§13); the domain's zone at Cloudflare was set up by
 hand in its console, and Cloudflare Access does not exist yet (M4). Argo CD
 reconciles only what runs inside the cluster. Terraform takes over these
 resources by trigger — see [`roadmap.md`](roadmap.md#trigger-table).
@@ -210,6 +210,10 @@ to run it is in [`platform/warehouse/README.md`](../platform/warehouse/README.md
 
 Assets, lineage, backfill, declarative retries, native dbt and dlt integration.
 Metastore in Postgres, since the SQLite default does not serve multiple users.
+
+Until Dagster runs, each pipeline run reports success to Healthchecks.io, which
+e-mails the operator when a report is missing
+([ADR-0018](adr/0018-pipeline-heartbeat.md); runbook: *Pipeline heartbeat*).
 
 Airflow and Prefect are excluded on resident RAM.
 
@@ -1093,23 +1097,26 @@ the name unique):
 
 ```bash
 kubectl -n staging create job --from=cronjob/usgs-pipeline usgs-manual-$(date +%s)
-kubectl -n staging get pods -w       # Init:0/1 while dlt runs, then PodInitializing, Running, Completed
+kubectl -n staging get pods -w       # Init:0/2 while dlt runs, Init:1/2 while dbt runs, then Running, Completed
 ```
 
 If the scheduled run is active, the quota refuses the second Pod (room for one
 at a time); wait for it to finish.
 
-**Read the logs.** The load is the init container, the transform is the
-container; replace the Pod name from `get pods`:
+**Read the logs.** The load and the transform are the two init containers, in
+that order; the heartbeat is the only regular container. Replace the Pod name
+from `get pods`:
 
 ```bash
 kubectl -n staging logs <pod> -c ingest       # dlt: "loaded N rows into usgs_events"
 kubectl -n staging logs <pod> -c transform    # dbt build: models and tests
+kubectl -n staging logs <pod> -c heartbeat    # "heartbeat sent: HTTP 200"
 kubectl -n staging describe pod <pod>         # exit codes, OOMKilled, events
 ```
 
 If `ingest` fails, `transform` never starts and the Pod shows `Init:Error`;
-that is the intended stop, not a second failure.
+if either fails, `heartbeat` never starts. Both are the intended stop, not a
+second failure.
 
 **Check the row counts** through the Pod's local socket (no password, no
 port-forward). The socket session is the administrator's, as in the section
@@ -1131,6 +1138,41 @@ while it runs.
 
 Pod to Service connections keep TLS (`LAGOM_PG_SSLMODE=require`); only the
 port-forward path above uses `sslmode=disable`.
+
+#### Pipeline heartbeat
+
+Each run that loads and builds ends with a ping to its environment's check at
+Healthchecks.io; a missing ping is the alarm
+([ADR-0018](adr/0018-pipeline-heartbeat.md)). The account and the checks are
+made by hand, in its console:
+
+- One check per environment, `lagom-usgs-staging` and `lagom-usgs-prod`.
+- Schedule: *Cron*, `*/30 * * * *`, time zone UTC, the CronJob's schedule.
+- Grace: 20 minutes, the latest a healthy run can ping (up to 5 minutes late
+  to start, up to 15 to finish).
+- Integration: e-mail to the operator.
+
+**Seal the ping URL**, one per namespace. The URL is a secret — whoever has it
+can report a success — so it is pasted when the command waits, never typed on
+the command line:
+
+```bash
+read -rs HC_URL && echo "url length: ${#HC_URL}" && kubectl create secret generic pipeline-heartbeat -n <namespace> \
+  --from-literal=url="$HC_URL" --dry-run=client -o yaml \
+  | kubeseal --format yaml > platform/infra/postgres-<namespace>/pipeline-heartbeat-sealed.yaml; unset HC_URL
+```
+
+A Healthchecks.io ping URL is `https://hc-ping.com/` (20 characters) plus a
+36-character UUID, 56 in all.
+
+**Verify** after the change reaches the namespace: the next run's `heartbeat`
+log says `heartbeat sent: HTTP 200`, and the check turns *up* in the console.
+
+**When the e-mail arrives**, the check went quiet: read the Jobs and the logs
+above. No Job at all means the CronJob is not scheduling or the node is down;
+`Init:Error` means the load or the build failed; a failed `heartbeat` with
+three `heartbeat attempt … failed` lines means the run worked and the ping did
+not.
 
 ### Sections to fill as the platform is built
 
