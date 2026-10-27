@@ -78,18 +78,18 @@ spec:
             seccompProfile:
               type: RuntimeDefault
 
-          # Why an init container, not two containers: the kubelet runs init
-          # containers one at a time, in order, to completion, and starts the
-          # regular containers only if every one exited 0. So if `ingest`
-          # fails, `transform` never starts: dbt must not build silver and
-          # gold over a partial load, and a green dbt run over half-loaded
-          # bronze would be a silently wrong number. Two regular containers
-          # would start together and race.
+          # Why init containers: the kubelet runs init containers one at a
+          # time, in order, to completion, and starts the regular containers
+          # only if every one exited 0. So the run is a chain: if `ingest`
+          # fails, `transform` never starts (dbt must not build silver and
+          # gold over a partial load, a silently wrong number), and if either
+          # fails, `heartbeat` never starts, so no success is reported
+          # (ADR-0018). Regular containers would start together and race.
           #
           # Memory, by the same rule: a Pod's request is the larger of its
           # biggest init container and the sum of its regular containers
-          # (tools/resource_budget.py counts it that way), so running one
-          # after the other costs 256Mi, not 512Mi.
+          # (tools/resource_budget.py counts it that way), so the chain costs
+          # 256Mi, not the sum of its steps.
           initContainers:
             - name: ingest
               # lagom-usgs, built from main at 2c91f08. The entrypoint is
@@ -134,7 +134,6 @@ spec:
                 - name: tmp
                   mountPath: /tmp
 
-          containers:
             - name: transform
               # lagom-warehouse. The entrypoint is `dbt build` over bronze,
               # silver, and gold with their tests; a failing test fails the
@@ -194,6 +193,56 @@ spec:
                 # --log-path point under /tmp).
                 - name: tmp
                   mountPath: /tmp
+
+          containers:
+            # Starts only after `ingest` and `transform` both exited 0, so a
+            # ping means this run loaded and built. A missing ping is the
+            # alarm: Healthchecks.io e-mails the operator when none arrives
+            # within the schedule plus 20 minutes of grace (ADR-0018). Same
+            # image as `transform`, already on the node, with its command
+            # replaced by the standard library. Three tries, then exit 1, so a
+            # failed ping fails the Job loudly. It never prints the URL: whoever
+            # holds it can report a success and silence the alarm.
+            - name: heartbeat
+              image: ghcr.io/filipefantini/lagom-warehouse:c09a00ba4aec940a316be1766a5c0ea3ff05ef29@sha256:3072401e2b8c12ebb4753a3ac666bd09444008e06120b7e9551152ef7896a507
+              command:
+                - python
+                - -c
+                - |
+                  import os, sys, time, urllib.request
+                  url = os.environ["HEARTBEAT_URL"]
+                  for attempt in (1, 2, 3):
+                      try:
+                          with urllib.request.urlopen(url, timeout=10) as response:
+                              print(f"heartbeat sent: HTTP {response.status}")
+                              sys.exit(0)
+                      except OSError as error:
+                          print(f"heartbeat attempt {attempt} failed: {error}", file=sys.stderr)
+                          time.sleep(5)
+                  sys.exit(1)
+              env:
+                # The check's ping URL, from a SealedSecret in this directory
+                # (pipeline-heartbeat-sealed.yaml). If the Secret is missing
+                # the container cannot start and the Job fails: loud.
+                - name: HEARTBEAT_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: pipeline-heartbeat
+                      key: url
+              resources:
+                # One HTTPS request from Python: 32Mi is a starting figure,
+                # corrected from `kubectl top pod --containers` on the first
+                # runs (runbook, Pipeline heartbeat).
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 64Mi
+              securityContext:
+                readOnlyRootFilesystem: true
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
 
           volumes:
             # The root filesystems are read-only, so each process needs a

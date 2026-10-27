@@ -50,7 +50,7 @@ and the test, it fails for a reason that is not a defect: run the build again.
 
 What the tests do not cover: `dbt parse` in CI reads the project but never
 queries, so only a run against a database proves the SQL, the contract and the
-tests. Staging runs it after every dlt load as the `transform` container of the CronJob
+tests. Staging runs it after every dlt load as the `transform` init container of the CronJob
 [`platform/infra/postgres-staging/cronjob-usgs.yaml`](../../platform/infra/postgres-staging/cronjob-usgs.yaml);
 the first such run has not happened yet.
 

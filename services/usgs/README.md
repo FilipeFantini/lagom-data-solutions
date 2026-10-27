@@ -1,7 +1,7 @@
 # usgs — earthquake events
 
 Extraction and load of earthquake events from the USGS FDSN event web service
-into the `bronze` schema. Part of M2; staging runs it as the init container of the CronJob
+into the `bronze` schema. Part of M2; staging runs it as the first init container of the CronJob
 [`platform/infra/postgres-staging/cronjob-usgs.yaml`](../../platform/infra/postgres-staging/cronjob-usgs.yaml).
 
 | | |
