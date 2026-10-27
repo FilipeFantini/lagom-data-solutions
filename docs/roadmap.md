@@ -297,9 +297,8 @@ by its own trigger, like any other piece.
       Application — with the next Argo CD Application (the Postgres `Cluster`).
       Its trigger was reached in M2, with the Postgres Applications. Done in [`tools/manifest_policy.py`](../tools/manifest_policy.py):
       the four rules and what the check does not cover are in
-      [`tools/README.md`](../tools/README.md#manifest-policy-check). The
-      `manifest policy` job is required only once the operator adds it to the
-      `main` ruleset
+      [`tools/README.md`](../tools/README.md#manifest-policy-check). Required
+      on `main` by the ruleset since 2026-10-27
 - [ ] Data gates — `dbt test` and reconciliation in CI are M2 and M3 items
       above, not repeated here
 - [x] **CI check that prod only pins a digest staging ran** —
