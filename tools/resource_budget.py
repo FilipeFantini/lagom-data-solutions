@@ -242,7 +242,8 @@ def main() -> int:
     parser.add_argument(
         "--k3s-builtins-mi",
         type=int,
-        default=170,
+        # CoreDNS's request, the only component k3s still installs (ADR-0021).
+        default=70,
         help="requests of components k3s installs outside Git (architecture.md §11)",
     )
     args = parser.parse_args()

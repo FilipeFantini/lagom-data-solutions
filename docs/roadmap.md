@@ -295,8 +295,7 @@ by its own trigger, like any other piece.
 - [x] **Manifest policy check in CI**, in `tools/` beside the budget check:
       pinned chart and image versions, an explicit prune policy on every
       Application — with the next Argo CD Application (the Postgres `Cluster`).
-      **Trigger reached in M2:** the Postgres Applications exist; the check
-      does not. Done in [`tools/manifest_policy.py`](../tools/manifest_policy.py):
+      Its trigger was reached in M2, with the Postgres Applications. Done in [`tools/manifest_policy.py`](../tools/manifest_policy.py):
       the four rules and what the check does not cover are in
       [`tools/README.md`](../tools/README.md#manifest-policy-check). The
       `manifest policy` job is required only once the operator adds it to the

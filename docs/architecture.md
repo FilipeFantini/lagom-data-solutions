@@ -497,10 +497,8 @@ components k3s installs outside Git**.
 it is the only component k3s still installs: Traefik and servicelb are
 disabled, and local-path and metrics-server are Argo CD Applications that the
 check counts like any other. CoreDNS is outside Git, so the check cannot see
-it, but it declares a request (70 MiB) and a limit (170 MiB). The allowance in
-`tools/resource_budget.py` is still 170 MiB, from when it covered all four;
-lowering it to 70 MiB changes a gate, so it is a separate change merged by the
-operator. Until then the check over-counts by 100 MiB.
+it, but it declares a request (70 MiB) and a limit (170 MiB), and the check
+adds that 70 MiB request as its allowance for components outside Git.
 
 **Core (M1–M3)** — workloads that run as pods:
 
