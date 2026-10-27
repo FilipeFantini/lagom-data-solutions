@@ -45,8 +45,23 @@ pushes in any flag position or `+` refspec, remote deletes — and pushes to
 cannot scope these
 rules to one agent, so they bind the main session too. They match the command
 as written: `git -C . reset --hard` is not caught, so they stop mistakes, not a
-determined bypass. Everything else — no push from the implementer, no
-`kubectl apply` — is still instruction only. Changing the file is a guardrail
+determined bypass.
+
+The same file denies **writes to the cluster** (since 2026-10-27): the
+`kubectl` verbs that change or enter running objects (`apply`, `delete`,
+`edit`, `patch`, `replace`, `scale`, `label`, `annotate`, `exec`, `cp`,
+`attach`, `run`, `debug`, `set`, `rollout`, `drain`, `cordon`, `uncordon`,
+`taint`), in either position (`kubectl -n prod delete …` too); `kubectl
+create` from a file, of a Secret or of a token; and `helm install`,
+`upgrade`, `uninstall`, `rollback`. Argo CD is the cluster's writer, and a
+change reaches it through a merge. What stays allowed is what the runbook
+needs an agent for: reading (`get`, `describe`, `logs`, `top`), `kubectl
+create job --from=cronjob/…` to run a pipeline on demand, `port-forward`, and
+`kubectl diff -n <namespace> -f` (manifests here carry no namespace; Argo CD sets it), which replaces `apply --dry-run=server` as the server-side
+check of a manifest. What it does not stop: commands run through `ssh` on the
+node (`sudo k3s kubectl …`, `systemctl`), `kubectl` reached through another
+program, and verbs not listed. Everything else — no push from the
+implementer — is still instruction only. Changing the file is a guardrail
 change ([`engineering-protocol.md`](docs/engineering-protocol.md) §18 rule 3).
 
 Branch naming: `feat/`, `fix/`, `docs/`, `chore/`, `refactor/` followed by a
