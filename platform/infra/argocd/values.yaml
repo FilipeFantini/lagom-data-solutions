@@ -1,0 +1,55 @@
+# Helm values for Argo CD on lagom-shared-01.
+# Chart: argo/argo-cd 10.10.3 (Argo CD v3.5.5). Only what differs from the
+# chart defaults is set here; everything else is upstream behaviour.
+#
+# Memory: every component declares a request (what the scheduler reserves)
+# and a limit (where the kernel kills it). CPU declares only a request: CPU is
+# compressible, so going over it means running slower, not dying, and a CPU
+# limit would only add throttling.
+
+# Single sign-on is not used: operators log in as admin over Tailscale.
+dex:
+  enabled: false
+
+# No notification channel exists yet. Enters with a real alerting need.
+notifications:
+  enabled: false
+
+# Applications are declared one by one; no generator needs the
+# ApplicationSet controller yet. Zero replicas keeps its CRD without the pod.
+applicationSet:
+  replicas: 0
+  resources:
+    requests: {cpu: 25m, memory: 64Mi}
+    limits: {memory: 128Mi}
+
+controller:
+  # Measured 2026-10-13 with three Applications: working set swings between
+  # ~290 and ~465 MiB as Go's garbage collector lets the heap grow to about
+  # twice its live size. GOMEMLIMIT tells the Go runtime where the container
+  # limit is, so it collects harder near that point instead of being killed.
+  env:
+    - {name: GOMEMLIMIT, value: 540MiB}
+  resources:
+    requests: {cpu: 100m, memory: 384Mi}
+    limits: {memory: 640Mi}
+
+repoServer:
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {memory: 384Mi}
+
+server:
+  resources:
+    requests: {cpu: 25m, memory: 64Mi}
+    limits: {memory: 192Mi}
+
+redis:
+  resources:
+    requests: {cpu: 25m, memory: 32Mi}
+    limits: {memory: 96Mi}
+
+redisSecretInit:
+  resources:
+    requests: {cpu: 10m, memory: 32Mi}
+    limits: {memory: 64Mi}

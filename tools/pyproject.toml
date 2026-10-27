@@ -1,0 +1,25 @@
+[project]
+name = "lagom-tools"
+version = "0.1.0"
+description = "Development and operational scripts for the Lagom data platform"
+requires-python = ">=3.12"
+dependencies = ["pyyaml>=6"]
+
+[dependency-groups]
+dev = ["pytest>=8", "mypy>=1.10", "ruff>=0.6", "types-pyyaml>=6"]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.mypy]
+strict = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

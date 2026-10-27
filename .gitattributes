@@ -1,0 +1,8 @@
+* text=auto eol=lf
+
+# Binaries are not reviewable: a diff over them is useless and a merge
+# conflict unresolvable. Mark them so git stops trying.
+*.png binary
+*.jpg binary
+*.parquet binary
+*.pbix binary

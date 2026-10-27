@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+
+# Environment and secrets — never commit real values
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.yaml
+!*-sealed.yaml
+
+# dlt — a pattern containing a slash is anchored to the repository root, so
+# **/ is what makes these match inside services/<name>/ too
+**/.dlt/secrets.toml
+**/.dlt/*.duckdb
+
+# dbt
+target/
+dbt_packages/
+logs/
+.user.yml
+
+# DuckDB working files
+*.duckdb
+*.duckdb.wal
+
+# Local data — never in Git
+data/
+*.parquet
+
+# Kubernetes
+kubeconfig
+*.kubeconfig
+
+# Evidence / node
+node_modules/
+.evidence/
+
+# OS and editors
+.DS_Store
+.vscode/
+.idea/

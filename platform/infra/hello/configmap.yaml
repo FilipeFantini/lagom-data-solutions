@@ -1,0 +1,13 @@
+# The page nginx serves. Editing the text and merging is the GitOps test:
+# Argo CD updates this ConfigMap, the kubelet refreshes the mounted file
+# within about a minute, and nginx serves the new text without a restart.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hello-page
+data:
+  index.html: |
+    <!doctype html>
+    <title>lagom</title>
+    <p>Hello from lagom-shared-01, deployed by Argo CD.</p>
+    <p>This line arrived by a merged commit. Nobody ran a command.</p>

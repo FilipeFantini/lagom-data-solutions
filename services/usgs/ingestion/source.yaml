@@ -1,0 +1,57 @@
+# Configuration for the USGS earthquake source. Loaded by pipeline.py with
+# yaml.safe_load; the `rest_api` block is passed to dlt's rest_api source
+# unchanged. See ../README.md for why each choice was made.
+
+ingestion:
+  dataset_name: bronze
+  # First run only: how far back to read when no cursor exists yet.
+  initial_lookback_days: 30
+  # A window at least this long that returns no events fails the run.
+  # The feed averages about 9 events per hour, so 6 empty hours is an outage.
+  empty_window_hours: 6
+
+rest_api:
+  client:
+    base_url: https://earthquake.usgs.gov/fdsnws/event/1/
+  resources:
+    - name: usgs_events
+      write_disposition: merge
+      primary_key: [id, properties__updated]
+      # A new field is added as a column. A field whose type changes fails the
+      # run instead of silently creating a second, variant column.
+      schema_contract:
+        data_type: freeze
+      columns:
+        # [lon, lat, depth]. Kept as JSON; silver extracts the three values.
+        geometry__coordinates:
+          data_type: json
+        # The API writes these as 4 or 4.1 depending on the value. Without a
+        # hint, dlt types the column from whichever it sees first.
+        properties__mag: {data_type: double}
+        properties__cdi: {data_type: double}
+        properties__mmi: {data_type: double}
+        properties__dmin: {data_type: double}
+        properties__rms: {data_type: double}
+        properties__gap: {data_type: double}
+        # Deprecated by USGS and always null; typed so the column exists.
+        properties__tz: {data_type: bigint}
+      endpoint:
+        path: query
+        data_selector: features
+        params:
+          format: geojson
+          orderby: time-asc
+        paginator:
+          type: offset
+          # The API allows 20000, but returned truncated JSON for responses of
+          # a few thousand events; 1000 keeps a 30-day backfill to ~9 pages.
+          limit: 1000
+          offset: 1
+          offset_param: offset
+          limit_param: limit
+          total_path: null
+        incremental:
+          cursor_path: properties.updated
+          start_param: updatedafter
+          primary_key: id
+          on_cursor_value_missing: raise

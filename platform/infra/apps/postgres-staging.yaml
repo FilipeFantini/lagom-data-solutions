@@ -1,0 +1,27 @@
+# The staging Postgres: one CloudNativePG Cluster mirroring prod's, plus the
+# developer's role and database, reconciled from platform/infra/postgres-staging/.
+# See ADR-0007 and ADR-0014.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: postgres-staging
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/FilipeFantini/lagom-data-solutions.git
+    targetRevision: main
+    path: platform/infra/postgres-staging
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: staging
+  syncPolicy:
+    automated:
+      # Never prune: removing the Cluster object deletes the database with it.
+      # Staging holds nothing irreplaceable, but a removal must still never be
+      # one merge away, and the same rule as prod keeps the two Applications
+      # identical.
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

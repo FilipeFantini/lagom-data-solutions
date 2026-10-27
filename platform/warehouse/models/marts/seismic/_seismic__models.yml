@@ -1,0 +1,234 @@
+version: 2
+
+# Column names and types here are a published interface (protocol 16.3):
+# `contract.enforced` makes dbt compare them with the SQL and fail the build on
+# any difference, before the table is written.
+models:
+  - name: fct_earthquakes
+    description: >
+      Gold. One row per earthquake (event_type = 'earthquake'), latest
+      revision, with magnitude and depth classes. Feeds the globe.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: event_id
+        data_type: text
+        description: USGS event id. The primary key.
+        data_tests: [unique, not_null]
+      - name: event_time
+        data_type: timestamp with time zone
+        description: Origin time of the event, UTC.
+        data_tests: [not_null]
+      - name: updated_at
+        data_type: timestamp with time zone
+        description: When USGS last revised the event, UTC.
+      - name: magnitude
+        data_type: double precision
+        description: Magnitude. Negative values are real, for micro-events.
+        data_tests: [not_null]
+      - name: magnitude_type
+        data_type: text
+        description: Scale of the magnitude (ml, mb, mw, ...).
+      - name: magnitude_class
+        data_type: text
+        description: Band of the magnitude, lower bound inclusive.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [micro, minor, light, moderate, strong, major, great]
+      - name: place
+        data_type: text
+        description: USGS description of the location.
+      - name: region
+        data_type: text
+        description: Text after the last comma of place; the whole place if it has none.
+      - name: latitude
+        data_type: double precision
+        description: Degrees, WGS84.
+        data_tests:
+          - not_null
+          - value_between: {arguments: {min_value: -90, max_value: 90}}
+      - name: longitude
+        data_type: double precision
+        description: Degrees, WGS84.
+        data_tests:
+          - not_null
+          - value_between: {arguments: {min_value: -180, max_value: 180}}
+      - name: depth_km
+        data_type: double precision
+        description: Depth in kilometres. Can be negative above sea level.
+        # Required: the globe places events by depth. None was null in the
+        # first 10,168 real events; a missing third coordinate fails here.
+        data_tests:
+          - not_null
+      - name: depth_class
+        data_type: text
+        description: shallow below 70 km, intermediate up to 300 km, deep above.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [shallow, intermediate, deep]
+      - name: status
+        data_type: text
+        description: "`reviewed` once a USGS analyst has checked the event, else `automatic`."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [reviewed, automatic]
+      - name: is_reviewed
+        data_type: boolean
+        description: status = 'reviewed'.
+      - name: has_tsunami_flag
+        data_type: boolean
+        description: USGS tsunami flag. A flag on the event, not a forecast.
+      - name: significance
+        data_type: bigint
+        description: USGS significance score.
+      - name: felt_reports
+        data_type: bigint
+        description: Number of "Did You Feel It?" reports.
+      - name: alert_level
+        data_type: text
+        description: PAGER alert level, null when none was issued.
+      - name: network
+        data_type: text
+        description: Contributing network code.
+      - name: url
+        data_type: text
+        description: Event page on earthquake.usgs.gov.
+      - name: title
+        data_type: text
+        description: Short title USGS gives the event.
+
+  - name: agg_earthquakes_daily_region
+    description: >
+      Gold. Earthquakes per UTC day and region, from fct_earthquakes.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: event_date
+        data_type: date
+        description: UTC calendar day of the origin time.
+        data_tests: [not_null]
+      - name: region
+        data_type: text
+        description: Region as in fct_earthquakes. Null if USGS gave no place.
+      - name: event_count
+        data_type: bigint
+        description: Earthquakes in the group.
+        data_tests: [not_null]
+      - name: max_magnitude
+        data_type: double precision
+        description: Largest magnitude in the group.
+      - name: avg_magnitude
+        # Magnitudes lie between -10 and 10, so two integer digits suffice.
+        data_type: numeric(4,2)
+        description: Mean magnitude, rounded to 2 decimals.
+      - name: count_magnitude_4_plus
+        data_type: bigint
+        description: Earthquakes of magnitude 4.0 or more.
+      - name: last_event_time
+        data_type: timestamp with time zone
+        description: Origin time of the latest event in the group.
+
+unit_tests:
+  - name: fct_earthquakes_keeps_only_earthquakes
+    description: Other event types stay out of the fact table.
+    model: fct_earthquakes
+    given:
+      - input: ref('stg_usgs__events')
+        rows:
+          - {event_id: a, event_type: earthquake, magnitude: 3.0}
+          - {event_id: b, event_type: quarry blast, magnitude: 1.5}
+          - {event_id: c, event_type: explosion, magnitude: 2.0}
+    expect:
+      rows:
+        - {event_id: a}
+
+  - name: fct_earthquakes_magnitude_class_boundaries
+    description: >
+      Each band includes its lower bound; negative magnitudes are micro.
+    model: fct_earthquakes
+    given:
+      - input: ref('stg_usgs__events')
+        rows:
+          - {event_id: m_neg, event_type: earthquake, magnitude: -1.0}
+          - {event_id: m_199, event_type: earthquake, magnitude: 1.99}
+          - {event_id: m_200, event_type: earthquake, magnitude: 2.0}
+          - {event_id: m_400, event_type: earthquake, magnitude: 4.0}
+          - {event_id: m_500, event_type: earthquake, magnitude: 5.0}
+          - {event_id: m_600, event_type: earthquake, magnitude: 6.0}
+          - {event_id: m_700, event_type: earthquake, magnitude: 7.0}
+          - {event_id: m_799, event_type: earthquake, magnitude: 7.99}
+          - {event_id: m_800, event_type: earthquake, magnitude: 8.0}
+    expect:
+      rows:
+        - {event_id: m_neg, magnitude_class: micro}
+        - {event_id: m_199, magnitude_class: micro}
+        - {event_id: m_200, magnitude_class: minor}
+        - {event_id: m_400, magnitude_class: light}
+        - {event_id: m_500, magnitude_class: moderate}
+        - {event_id: m_600, magnitude_class: strong}
+        - {event_id: m_700, magnitude_class: major}
+        - {event_id: m_799, magnitude_class: major}
+        - {event_id: m_800, magnitude_class: great}
+
+  - name: fct_earthquakes_depth_class_boundaries
+    description: 70 km is intermediate, 300 km is still intermediate, 300.1 is deep.
+    model: fct_earthquakes
+    given:
+      - input: ref('stg_usgs__events')
+        rows:
+          - {event_id: d_neg, event_type: earthquake, depth_km: -1.5}
+          - {event_id: d_699, event_type: earthquake, depth_km: 69.9}
+          - {event_id: d_700, event_type: earthquake, depth_km: 70}
+          - {event_id: d_3000, event_type: earthquake, depth_km: 300}
+          - {event_id: d_3001, event_type: earthquake, depth_km: 300.1}
+    expect:
+      rows:
+        - {event_id: d_neg, depth_class: shallow}
+        - {event_id: d_699, depth_class: shallow}
+        - {event_id: d_700, depth_class: intermediate}
+        - {event_id: d_3000, depth_class: intermediate}
+        - {event_id: d_3001, depth_class: deep}
+
+  - name: agg_earthquakes_daily_region_groups_by_utc_day
+    description: >
+      Events one second either side of UTC midnight land on different days, and
+      only magnitudes of 4.0 or more count towards count_magnitude_4_plus.
+    # avg_magnitude is numeric, so the expected values are strings: 2.50 as a
+    # YAML number would lose its trailing zero and compare as text.
+    model: agg_earthquakes_daily_region
+    given:
+      - input: ref('fct_earthquakes')
+        rows:
+          - {event_id: a, region: Alaska, magnitude: 4.0, event_time: "2026-10-01 23:59:59+00"}
+          - {event_id: b, region: Alaska, magnitude: 3.99, event_time: "2026-10-01 10:00:00+00"}
+          - {event_id: c, region: Alaska, magnitude: 5.0, event_time: "2026-10-02 00:00:00+00"}
+          - {event_id: d, region: Chile, magnitude: 2.5, event_time: "2026-10-01 12:00:00+00"}
+          - {event_id: e, region: Alaska, magnitude: 3.0, event_time: "2026-10-01 11:00:00+00"}
+    expect:
+      rows:
+        - event_date: "2026-10-01"
+          region: Alaska
+          event_count: 3
+          max_magnitude: 4.0
+          avg_magnitude: "3.66"
+          count_magnitude_4_plus: 1
+          last_event_time: "2026-10-01 23:59:59+00"
+        - event_date: "2026-10-02"
+          region: Alaska
+          event_count: 1
+          max_magnitude: 5.0
+          avg_magnitude: "5.00"
+          count_magnitude_4_plus: 1
+          last_event_time: "2026-10-02 00:00:00+00"
+        - event_date: "2026-10-01"
+          region: Chile
+          event_count: 1
+          max_magnitude: 2.5
+          avg_magnitude: "2.50"
+          count_magnitude_4_plus: 0
+          last_event_time: "2026-10-01 12:00:00+00"

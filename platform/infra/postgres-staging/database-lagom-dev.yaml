@@ -1,0 +1,14 @@
+# The developer's database (ADR-0014): disposable, owned by the lagom_dev role
+# that cluster.yaml declares. The operator creates it with CREATE DATABASE and
+# keeps it matching this object. The Kubernetes name uses a hyphen because
+# object names cannot contain underscores; the Postgres name is `spec.name`.
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: lagom-dev
+spec:
+  name: lagom_dev
+  owner: lagom_dev
+  cluster:
+    name: postgres
+  ensure: present

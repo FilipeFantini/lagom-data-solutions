@@ -1,0 +1,76 @@
+version: 2
+
+models:
+  - name: stg_usgs__events
+    description: >
+      Silver. One row per USGS event: its latest revision, typed and renamed.
+      Every event type is kept; times are timestamptz (UTC).
+    columns:
+      - name: event_id
+        description: USGS event id. The primary key.
+        data_tests: [unique, not_null]
+      - name: status
+        description: "`reviewed` once a USGS analyst has checked the event, else `automatic`."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [reviewed, automatic]
+
+unit_tests:
+  - name: stg_usgs__events_keeps_latest_revision
+    description: >
+      Three revisions of one event and a second event with one revision: only
+      the revision with the largest `updated` of each event survives, whatever
+      the order the rows arrive in.
+    model: stg_usgs__events
+    given:
+      - input: source('usgs', 'events')
+        rows:
+          - {id: ev1, properties__updated: 1000, properties__mag: 2.0, properties__status: automatic}
+          - {id: ev1, properties__updated: 3000, properties__mag: 2.5, properties__status: reviewed}
+          - {id: ev1, properties__updated: 2000, properties__mag: 9.9, properties__status: automatic}
+          - {id: ev2, properties__updated: 500, properties__mag: 1.0, properties__status: automatic}
+    expect:
+      rows:
+        - {event_id: ev1, magnitude: 2.5, status: reviewed, is_reviewed: true}
+        - {event_id: ev2, magnitude: 1.0, status: automatic, is_reviewed: false}
+
+  - name: stg_usgs__events_parses_region
+    description: >
+      The region is the text after the last comma, trimmed; a place with no
+      comma is its own region.
+    model: stg_usgs__events
+    given:
+      - input: source('usgs', 'events')
+        rows:
+          - {id: ev1, properties__updated: 1, properties__place: "12 km SSW of Town, Alaska"}
+          - {id: ev2, properties__updated: 1, properties__place: "Fiji region"}
+          - {id: ev3, properties__updated: 1, properties__place: "5 km N of A, B, Nevada"}
+    expect:
+      rows:
+        - {event_id: ev1, region: Alaska}
+        - {event_id: ev2, region: Fiji region}
+        - {event_id: ev3, region: Nevada}
+
+  - name: stg_usgs__events_converts_types
+    description: >
+      Epoch milliseconds become UTC instants, and the coordinate array is split
+      in GeoJSON order: longitude, latitude, depth.
+    model: stg_usgs__events
+    given:
+      - input: source('usgs', 'events')
+        rows:
+          - id: ev1
+            properties__updated: 1760000000500
+            properties__time: 1760000000000
+            geometry__coordinates: "[-150.5, 61.25, 12.5]"
+            properties__tsunami: 1
+    expect:
+      rows:
+        - event_id: ev1
+          event_time: "2025-10-09 08:53:20+00"
+          updated_at: "2025-10-09 08:53:20.5+00"
+          longitude: -150.5
+          latitude: 61.25
+          depth_km: 12.5
+          has_tsunami_flag: true

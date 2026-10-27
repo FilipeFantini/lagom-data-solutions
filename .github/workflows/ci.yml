@@ -1,0 +1,134 @@
+# Checks every pull request and every push to main. Runs on GitHub's
+# machines, so it costs nothing on the node.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tools:
+    name: tools (lint, types, tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - run: uv run --project tools --locked ruff format --check tools
+      - run: uv run --project tools --locked ruff check tools
+      - run: uv run --project tools --locked mypy --config-file tools/pyproject.toml tools
+      - run: uv run --project tools --locked pytest tools
+
+  services:
+    name: services (lint, types, tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      # Every service is its own uv project. Looping over the directory keeps
+      # ADR-0006's test: adding a service changes nothing outside it.
+      # mypy reads its config from the working directory, not from the project,
+      # so the file is named explicitly or strict mode would silently not apply.
+      - run: |
+          set -euo pipefail
+          for project in services/*/; do
+            project="${project%/}"
+            echo "::group::$project"
+            uv run --project "$project" --locked ruff format --check "$project"
+            uv run --project "$project" --locked ruff check "$project"
+            uv run --project "$project" --locked mypy --config-file "$project/pyproject.toml" "$project"
+            uv run --project "$project" --locked pytest "$project"
+            echo "::endgroup::"
+          done
+
+  secrets:
+    name: secret scan
+    runs-on: ubuntu-latest
+    steps:
+      # The whole history, not only the tip: a secret committed and then
+      # deleted is still in the history, and so still leaked. On a pull
+      # request the checkout is the merge commit, so the branch's commits are
+      # scanned too. The scan takes under a second at this repository's size.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      # The release binary, pinned by version and checked against its SHA-256
+      # from gitleaks' checksums file. The official action would add one more
+      # third-party action to trust for the same scan.
+      - run: |
+          set -euo pipefail
+          version=8.30.1
+          sha256=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+          archive="gitleaks_${version}_linux_x64.tar.gz"
+          curl -fsSLO "https://github.com/gitleaks/gitleaks/releases/download/v${version}/${archive}"
+          echo "${sha256}  ${archive}" | sha256sum --check --strict
+          tar -xzf "${archive}" gitleaks
+      # --redact keeps a found secret out of the job log, which anyone with
+      # read access to the repository can open. A finding fails the job.
+      - run: ./gitleaks git --config .gitleaks.toml --redact --no-banner --verbose .
+
+  resource-budget:
+    name: resource budget
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.3.0
+      - run: uv run --project tools --locked python tools/resource_budget.py
+
+  promotion:
+    name: promotion (prod pins only staging's digests)
+    runs-on: ubuntu-latest
+    steps:
+      # The whole history: the check asks whether staging pinned a digest in
+      # any commit before the base, not only at the base.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      # The base is what the change is compared against: the pull request's
+      # base commit, or main's previous tip on a push. Passed through the
+      # environment, not interpolated into the script.
+      #
+      # A push that creates the branch has no previous tip: GitHub sends 40
+      # zeros. That happens once, when the public repository is first pushed
+      # (ADR-0017). The pushed commit is then the base, so the check still
+      # fails a prod digest that staging does not pin in it; what it cannot
+      # see is the order before the snapshot.
+      - run: |
+          set -euo pipefail
+          if [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "::notice::No previous tip on this push; the pushed commit is the base"
+            BASE="$GITHUB_SHA"
+          fi
+          uv run --project tools --locked python tools/promotion_check.py --base "$BASE"
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+
+  warehouse:
+    name: warehouse (lint, parse)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - run: uv run --project platform/warehouse --locked sqlfluff lint platform/warehouse
+      # `dbt parse` reads the project and the profile but never opens a
+      # connection, so the connection variables only need to exist. The values
+      # are placeholders, not credentials: nothing here can reach a database,
+      # and the real ones never leave the operator's machine and the cluster.
+      # This does not check the SQL against a database, nor run any test.
+      - run: >
+          uv run --project platform/warehouse --locked dbt parse
+          --project-dir platform/warehouse --profiles-dir platform/warehouse
+        env:
+          LAGOM_PG_HOST: localhost
+          LAGOM_PG_PORT: "5432"
+          LAGOM_PG_USER: ci-placeholder
+          LAGOM_PG_PASSWORD: ci-placeholder
+          LAGOM_PG_DBNAME: ci-placeholder
+          LAGOM_PG_SSLMODE: disable

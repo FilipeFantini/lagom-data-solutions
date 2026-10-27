@@ -1,0 +1,35 @@
+# CloudNativePG: the operator that runs Postgres from Cluster objects
+# committed to Git. See ADR-0012.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudnative-pg
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://cloudnative-pg.github.io/charts
+      chart: cloudnative-pg
+      targetRevision: 0.29.1
+      helm:
+        releaseName: cnpg
+        valueFiles:
+          - $values/platform/infra/cloudnative-pg/values.yaml
+    - repoURL: https://github.com/FilipeFantini/lagom-data-solutions.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cnpg-system
+  syncPolicy:
+    automated:
+      # Never prune: deleting the Cluster CRD deletes every database with it.
+      # The CRDs' resource-policy: keep protects them when the Application is
+      # deleted, not when a chart upgrade drops one and Argo CD prunes it.
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # The clusters and poolers CRDs exceed the 256 KiB annotation that
+      # client-side apply needs; server-side apply does not keep that copy.
+      - ServerSideApply=true

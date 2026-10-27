@@ -1,0 +1,31 @@
+# Argo CD manages itself: the upstream chart, pinned, with the values file
+# from this repository. A change to platform/infra/argocd/values.yaml is
+# applied by Argo CD like any other change.
+#
+# Pruning is off: a mistake here must not let Argo CD delete its own pieces.
+# If Argo CD stops working, recover with the helm command in the runbook.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://argoproj.github.io/argo-helm
+      chart: argo-cd
+      targetRevision: 10.10.3
+      helm:
+        releaseName: argocd
+        valueFiles:
+          - $values/platform/infra/argocd/values.yaml
+    - repoURL: https://github.com/FilipeFantini/lagom-data-solutions.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true

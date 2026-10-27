@@ -1,0 +1,38 @@
+# Staging cannot reach prod: ADR-0007's third condition for a real staging.
+# Without this, any Pod in any namespace can open a connection to prod's
+# Postgres, and only its password stands in the way.
+#
+# A NetworkPolicy selects Pods and, once one selects a Pod for Ingress, only
+# the traffic it allows reaches that Pod. This one selects every Pod in the
+# namespace and allows traffic from two places: Pods in `prod` itself, and the
+# CloudNativePG operator in `cnpg-system`, which calls each instance manager's
+# status port. Everything else, staging included, is dropped. There is
+# deliberately no namespace here: Argo CD's destination (apps/postgres-prod.yaml)
+# sets it.
+#
+# What this does not block:
+# - The kubelet's probes. They are real HTTP(S) connections from the node to
+#   the Pod (the instance manager answers on port 8000), and k3s's policy
+#   controller (kube-router) admits traffic from the local node. Tested on
+#   2026-10-17 in throwaway namespaces: under a policy like this one, a Pod's
+#   HTTP probes kept passing for ~110 s with no restart, while a Pod in another
+#   namespace was refused. Another CNI or a second node may behave otherwise.
+# - `kubectl port-forward`, which enters the Pod through the container
+#   runtime on the node, not as traffic between Pods.
+# - Egress, which is not restricted.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prod-and-operator
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: prod
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cnpg-system

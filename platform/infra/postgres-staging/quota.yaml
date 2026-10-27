@@ -1,0 +1,39 @@
+# What keeps staging from starving prod: the kubelet and API server refuse
+# what exceeds these, rather than relying on good intentions (ADR-0007).
+#
+# Arithmetic, in memory (the Postgres Pod and its initdb Job Pod each carry
+# request 300Mi / limit 512Mi, and the Job finishes before the Pod starts;
+# finished Pods stop counting against a quota):
+#   requests  Postgres 300 + 468 left for the dlt and dbt jobs coming next = 768Mi
+#   limits    Postgres 512 + 1024 left for those jobs                      = 1536Mi
+# The 768Mi of requests is what staging may reserve; the budget check counts
+# only the Postgres Cluster (architecture.md section 11), and the quota is what
+# keeps the jobs inside the room the ceiling leaves for them.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: staging
+spec:
+  hard:
+    requests.memory: 768Mi
+    limits.memory: 1536Mi
+    requests.cpu: 500m
+    pods: "10"
+---
+# A quota on requests and limits rejects any Pod that does not declare them.
+# These defaults fill in for a container that says nothing, and `max` stops one
+# container from taking more than a single Postgres Pod's limit.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: staging
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        memory: 64Mi
+        cpu: 10m
+      default:
+        memory: 256Mi
+      max:
+        memory: 512Mi

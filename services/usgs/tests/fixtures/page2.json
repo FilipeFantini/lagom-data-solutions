@@ -1,0 +1,93 @@
+{
+ "type": "FeatureCollection",
+ "metadata": {
+  "generated": 1792150943000,
+  "title": "USGS Earthquakes",
+  "status": 200,
+  "api": "2.8.1",
+  "limit": 2,
+  "offset": 3
+ },
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "mag": 4.6,
+    "place": "West Chile Rise",
+    "time": 1791100596025,
+    "updated": 1792141498040,
+    "tz": null,
+    "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000u0y1",
+    "detail": "https://earthquake.usgs.gov/fdsnws/event/1/query?eventid=us6000u0y1&format=geojson",
+    "felt": null,
+    "cdi": null,
+    "mmi": null,
+    "alert": null,
+    "status": "reviewed",
+    "tsunami": 0,
+    "sig": 326,
+    "net": "us",
+    "code": "6000u0y1",
+    "ids": ",us6000u0y1,",
+    "sources": ",us,",
+    "types": ",origin,phase-data,",
+    "nst": 27,
+    "dmin": 8.535,
+    "rms": 0.39,
+    "gap": 145,
+    "magType": "mb",
+    "type": "earthquake",
+    "title": "M 4.6 - West Chile Rise"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -82.5592,
+     -43.3981,
+     10
+    ]
+   },
+   "id": "us6000u0y1"
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "mag": null,
+    "place": null,
+    "time": 1791671938000,
+    "updated": 1792015798745,
+    "tz": null,
+    "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000u1j7",
+    "detail": "https://earthquake.usgs.gov/fdsnws/event/1/query?eventid=us6000u1j7&format=geojson",
+    "felt": null,
+    "cdi": null,
+    "mmi": null,
+    "alert": null,
+    "status": "reviewed",
+    "tsunami": 0,
+    "sig": 234,
+    "net": "us",
+    "code": "6000u1j7",
+    "ids": ",us6000u1j7,",
+    "sources": ",us,",
+    "types": ",general-header,impact-text,origin,phase-data,",
+    "nst": 0,
+    "dmin": null,
+    "rms": 1.17,
+    "gap": null,
+    "magType": "ms_vx",
+    "type": "landslide",
+    "title": "M 3.9 Landslide - 64 km ENE of Besisahar, Nepal"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     84.942,
+     28.532,
+     0
+    ]
+   },
+   "id": "us6000u1j7"
+  }
+ ]
+}

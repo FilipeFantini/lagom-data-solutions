@@ -1,0 +1,115 @@
+# Builds the container images (ADR-0015). On a pull request it only builds and
+# smoke-tests, so a broken Dockerfile is caught before merge. On a push to main
+# it builds the same way and publishes to GHCR, tagged with the commit SHA.
+# Runs on GitHub's machines, so it costs nothing on the node.
+name: images
+
+on:
+  pull_request:
+    paths:
+      - "services/**"
+      - "platform/warehouse/**"
+      - ".github/workflows/images.yml"
+  push:
+    branches: [main]
+    paths:
+      - "services/**"
+      - "platform/warehouse/**"
+      - ".github/workflows/images.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  # Pull requests: no registry login, no write permission. Only `build` runs
+  # here; PR code is executed in this job, so it holds nothing it could abuse.
+  #
+  # To add an image for a new service, add one row to the matrix below and the
+  # same row to the matrix of `publish`. The two are separate jobs because a
+  # job's `permissions` cannot depend on the event: giving one job
+  # `packages: write` would also give it to pull requests.
+  build:
+    name: build (${{ matrix.name }})
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: usgs, context: services/usgs }
+          - { name: warehouse, context: platform/warehouse }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          platforms: linux/arm64
+          # Loaded into the runner's local Docker (not pushed) so the next step
+          # can run it.
+          load: true
+          push: false
+          tags: lagom-${{ matrix.name }}:ci
+      # What this proves: the image starts, runs as the numeric UID, and
+      # starts on a read-only root filesystem with only /tmp writable, the way
+      # the CronJob will run it. `--help` is the entrypoint's own help: it
+      # imports the whole dependency set but opens no connection. It does not
+      # prove a load or a build: that needs a database.
+      - name: Smoke test and size
+        env:
+          IMAGE: lagom-${{ matrix.name }}:ci
+        run: |
+          set -euo pipefail
+          test "$(docker run --rm --entrypoint id "$IMAGE" -u)" = "10001"
+          docker run --rm --read-only --tmpfs /tmp "$IMAGE" --help
+          size="$(docker image inspect --format '{{.Size}}' "$IMAGE")"
+          echo "$IMAGE: $((size / 1024 / 1024)) MiB" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  # Pushes to main: the only job that can write packages, through the
+  # workflow's own GITHUB_TOKEN. No other secret is used.
+  publish:
+    name: publish (${{ matrix.name }})
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: usgs, context: services/usgs }
+          - { name: warehouse, context: platform/warehouse }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      # The login is a plain `docker login`: one action fewer to pin and trust.
+      # The token goes in through stdin, never on a command line.
+      - name: Log in to ghcr.io
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$REGISTRY_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      # Tagged with the full commit SHA only, never `latest`: manifests pin the
+      # digest and the tag is for readers. The repository name is lowercase on
+      # purpose, as ghcr.io requires. `provenance: false` keeps the result a
+      # single image manifest, so the digest printed below is the image itself.
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        id: build
+        with:
+          context: ${{ matrix.context }}
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          tags: ghcr.io/filipefantini/lagom-${{ matrix.name }}:${{ github.sha }}
+      - name: Print the pushed digest
+        env:
+          IMAGE: ghcr.io/filipefantini/lagom-${{ matrix.name }}:${{ github.sha }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          test -n "$DIGEST"
+          printf '### %s\n\n`%s@%s`\n' "$IMAGE" "$IMAGE" "$DIGEST" >> "$GITHUB_STEP_SUMMARY"

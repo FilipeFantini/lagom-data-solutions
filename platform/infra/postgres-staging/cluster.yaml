@@ -1,0 +1,84 @@
+# The staging database: a single-instance PostgreSQL managed by the CloudNativePG
+# operator (ADR-0012). There is deliberately no namespace here: Argo CD's
+# destination (apps/postgres-staging.yaml) sets it.
+#
+# Staging mirrors prod's configuration on purpose, so it tests what prod runs:
+# everything from `imageName` to `bootstrap`, and the `gold_reader` role, is
+# identical to postgres-prod/cluster.yaml, and a change to one is made to both.
+# The only additions are `pg_hba` and the `lagom_dev` role, for the developer
+# (ADR-0014).
+# The reasoning behind each shared setting is written once, in the prod file.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres
+spec:
+  instances: 1
+
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.6-minimal-trixie@sha256:c9be7f221a05b18fe65259d9136affbabe3b39ad91c3b68f8f2f990a45f35f38
+
+  storage:
+    size: 5Gi
+    storageClass: local-path
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 300Mi
+    limits:
+      memory: 512Mi
+
+  postgresql:
+    parameters:
+      shared_buffers: 96MB
+      max_connections: "25"
+      work_mem: 4MB
+      maintenance_work_mem: 32MB
+      effective_cache_size: 256MB
+
+    # Postgres grants CONNECT on every database to every role by default, so
+    # owning `lagom_dev` does not keep the developer out of `lagom`, staging's
+    # pipeline data. This rule does (ADR-0014). The operator places these lines
+    # after its own fixed rules and before the catch-all
+    # `host all all all scram-sha-256`, and the first match wins, so the
+    # reject is reached before the password check. `host` matches TCP
+    # connections with or without TLS, so no separate `hostssl` line is needed.
+    # Local-socket access (`kubectl exec`, the operator) is a different rule
+    # type and is not affected.
+    pg_hba:
+      - host lagom lagom_dev all reject
+
+  env:
+    - name: GOMEMLIMIT
+      value: 96MiB
+
+  bootstrap:
+    initdb:
+      database: lagom
+      owner: lagom
+
+  enableSuperuserAccess: false
+
+  # The developer's login (ADR-0014). The operator creates the role and keeps
+  # it matching this block. Its password comes from the Sealed Secret
+  # lagom-dev-credentials (ADR-0010), unsealed into a basic-auth Secret in this
+  # namespace. No superuser and no CREATEDB: the role can only own what the
+  # `Database` object in database-lagom-dev.yaml creates for it.
+  managed:
+    roles:
+      # Same as prod; the reasoning is in postgres-prod/cluster.yaml.
+      - name: gold_reader
+        ensure: present
+        login: false
+        superuser: false
+        createdb: false
+        createrole: false
+        inherit: true
+        comment: read-only on the gold schema; granted by dbt
+      - name: lagom_dev
+        ensure: present
+        login: true
+        superuser: false
+        createdb: false
+        passwordSecret:
+          name: lagom-dev-credentials

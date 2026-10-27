@@ -1,0 +1,12 @@
+{
+ "type": "FeatureCollection",
+ "metadata": {
+  "generated": 1792150943000,
+  "title": "USGS Earthquakes",
+  "status": 200,
+  "api": "2.8.1",
+  "limit": 2,
+  "offset": 5
+ },
+ "features": []
+}

@@ -1,0 +1,12 @@
+# An allowlist: the build context is only what the Dockerfile copies. Local
+# dbt output (target/, logs/, .user.yml) and the virtual environment cannot
+# reach the image by being left in the directory.
+*
+!pyproject.toml
+!uv.lock
+!dbt_project.yml
+!profiles.yml
+!macros/
+!models/
+!tests/
+**/__pycache__

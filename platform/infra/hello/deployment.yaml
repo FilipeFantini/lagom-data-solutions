@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: hello}
+  template:
+    metadata:
+      labels: {app: hello}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: nginx
+          # Unprivileged variant: runs as a non-root user and listens on 8080.
+          image: nginxinc/nginx-unprivileged:1.30.5-alpine
+          ports:
+            - {name: http, containerPort: 8080}
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 32Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          readinessProbe:
+            httpGet: {path: /, port: http}
+          volumeMounts:
+            - {name: page, mountPath: /usr/share/nginx/html}
+            # nginx writes its pid and temp files here; the root filesystem is read-only.
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: page
+          configMap: {name: hello-page}
+        - name: tmp
+          emptyDir: {}

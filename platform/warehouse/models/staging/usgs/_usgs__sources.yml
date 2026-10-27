@@ -1,0 +1,19 @@
+version: 2
+
+sources:
+  - name: usgs
+    description: >
+      USGS earthquake events as dlt loads them (services/usgs). One row per
+      revision of an event: the merge key is (id, properties__updated).
+    schema: bronze
+    tables:
+      - name: events
+        identifier: usgs_events
+        config:
+          # Freshness is the primary SLI (engineering-protocol 11). The
+          # threshold is the one in services/usgs/README.md. It is checked by
+          # `dbt source freshness`, which `dbt build` does not run.
+          loaded_at_field: to_timestamp(properties__updated / 1000.0)
+          freshness:
+            warn_after: {count: 2, period: hour}
+            error_after: {count: 6, period: hour}

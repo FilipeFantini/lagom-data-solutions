@@ -1,0 +1,19 @@
+# platform/infra/
+
+Everything Argo CD applies to the cluster. **Nothing outside this directory can
+change the cluster**, and nothing inside it should be applied by hand after
+bootstrap — merge to `main` and Argo CD converges.
+
+| Path | What it is |
+|---|---|
+| `apps/` | One Argo CD Application per component. `root.yaml` watches this directory, so adding a file here adds a component |
+| `argocd/values.yaml` | Helm values for Argo CD itself, which it applies to itself |
+| `sealed-secrets/values.yaml` | Helm values for the controller that decrypts sealed secrets |
+| `cloudnative-pg/values.yaml` | Helm values for the operator that runs Postgres from `Cluster` objects |
+| `postgres-prod/` | The prod database: one CloudNativePG `Cluster`. The operator generates its credentials in the cluster; nothing is committed. Its `NetworkPolicy` admits only `prod` and the operator, so staging cannot reach it |
+| `postgres-staging/` | The staging database: a `Cluster` mirroring prod's, the developer's `lagom_dev` role and database, a ResourceQuota and LimitRange, and the sealed credential for that role |
+| `hello/` | A trivial nginx that proves the loop works |
+
+How it fits together, and why: [ADR-0009](../../docs/adr/0009-argocd-bootstrap-and-self-management.md).
+Bootstrap and recovery commands: the runbook in
+[`docs/architecture.md`](../../docs/architecture.md#13-runbook).

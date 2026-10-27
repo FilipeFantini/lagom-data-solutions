@@ -1,0 +1,93 @@
+{
+ "type": "FeatureCollection",
+ "metadata": {
+  "generated": 1792150943000,
+  "title": "USGS Earthquakes",
+  "status": 200,
+  "api": "2.8.1",
+  "limit": 2,
+  "offset": 1
+ },
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "mag": 4.6,
+    "place": "125 km WNW of Chauk, Burma (Myanmar)",
+    "time": 1791093307280,
+    "updated": 1792141227040,
+    "tz": null,
+    "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000tzh0",
+    "detail": "https://earthquake.usgs.gov/fdsnws/event/1/query?eventid=us6000tzh0&format=geojson",
+    "felt": null,
+    "cdi": null,
+    "mmi": null,
+    "alert": null,
+    "status": "reviewed",
+    "tsunami": 0,
+    "sig": 326,
+    "net": "us",
+    "code": "6000tzh0",
+    "ids": ",us6000tzh0,",
+    "sources": ",us,",
+    "types": ",origin,phase-data,",
+    "nst": 55,
+    "dmin": 1.107,
+    "rms": 0.83,
+    "gap": 91,
+    "magType": "mb",
+    "type": "earthquake",
+    "title": "M 4.6 - 125 km WNW of Chauk, Burma (Myanmar)"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     93.7574,
+     21.4444,
+     59.617
+    ]
+   },
+   "id": "us6000tzh0"
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "mag": 4.1,
+    "place": "20 km W of Preston, Nevada",
+    "time": 1790499247495,
+    "updated": 1792141460795,
+    "tz": null,
+    "url": "https://earthquake.usgs.gov/earthquakes/eventpage/nn00924954",
+    "detail": "https://earthquake.usgs.gov/fdsnws/event/1/query?eventid=nn00924954&format=geojson",
+    "felt": 1,
+    "cdi": 1,
+    "mmi": 4.211,
+    "alert": "green",
+    "status": "reviewed",
+    "tsunami": 0,
+    "sig": 259,
+    "net": "nn",
+    "code": "00924954",
+    "ids": ",nn00924954,us6000txxy,",
+    "sources": ",nn,us,",
+    "types": ",dyfi,event-sequence,losspager,moment-tensor,oaf,origin,phase-data,shakemap,",
+    "nst": 6,
+    "dmin": 0.383,
+    "rms": 0.195,
+    "gap": 199,
+    "magType": "mwr",
+    "type": "earthquake",
+    "title": "M 4.1 - 20 km W of Preston, Nevada"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -115.2989,
+     38.9229,
+     6
+    ]
+   },
+   "id": "nn00924954"
+  }
+ ]
+}

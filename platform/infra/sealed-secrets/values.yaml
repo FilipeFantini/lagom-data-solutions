@@ -1,0 +1,15 @@
+# Helm values for the Sealed Secrets controller.
+# Chart: sealed-secrets/sealed-secrets 2.20.0 (controller v0.40.0), from
+# https://bitnami.github.io/sealed-secrets. Only non-defaults are set here.
+
+# kubeseal looks for a controller with this name in kube-system by default.
+fullnameOverride: sealed-secrets-controller
+
+# Key renewal off: a new sealing key every 30 days would mean a new off-cluster
+# backup every 30 days, and a missed backup is unrecoverable data. Rotation is
+# a deliberate runbook step instead (ADR-0010).
+keyrenewperiod: "0"
+
+resources:
+  requests: {cpu: 10m, memory: 32Mi}
+  limits: {memory: 64Mi}

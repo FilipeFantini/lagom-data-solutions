@@ -1,0 +1,22 @@
+# gitleaks configuration, read by the `secrets` job in .github/workflows/ci.yml.
+# Every default rule applies; the one exception below is the only change.
+[extend]
+useDefault = true
+
+# Sealed Secrets ciphertext (ADR-0010). Each value under `encryptedData` in a
+# `*-sealed.yaml` file is the RSA-wrapped session key and the AES-encrypted
+# value, base64-encoded: it is safe to commit, but its entropy trips the
+# generic rule. Every value starts with `Ag` (the two-byte length 0x0200 of a
+# key wrapped with RSA-4096) and runs to several hundred characters.
+#
+# Kept as narrow as gitleaks allows, and tested both ways when it was written:
+# - Matched on the line, not the path. A `paths` entry makes gitleaks skip the
+#   whole file before reading it, whatever `condition` says, so a plaintext
+#   password in a file named `-sealed.yaml` would pass unseen.
+# - Only the generic rule is silenced. A specific rule (a GitHub token, a
+#   plain `kind: Secret`) still reports, even on the same line.
+[[allowlists]]
+description = "Sealed Secrets ciphertext"
+targetRules = ["generic-api-key"]
+regexTarget = "line"
+regexes = ['''^\s+[A-Za-z0-9._-]+: Ag[A-Za-z0-9+/]{500,}={0,2}$''']

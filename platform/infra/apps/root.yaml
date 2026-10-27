@@ -1,0 +1,21 @@
+# The root Application: Argo CD watches platform/infra/apps/ and creates every
+# Application it finds there, including this one. Applied once by hand at
+# bootstrap (see the runbook); from then on, changes to it arrive by commit.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/FilipeFantini/lagom-data-solutions.git
+    targetRevision: main
+    path: platform/infra/apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

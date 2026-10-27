@@ -1,0 +1,8 @@
+# An allowlist: the build context is only what the Dockerfile copies. A new
+# file (a stray secrets.toml, a local DuckDB file) cannot reach the image by
+# being left in the directory.
+*
+!pyproject.toml
+!uv.lock
+!ingestion/
+**/__pycache__

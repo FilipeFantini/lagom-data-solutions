@@ -1,0 +1,17 @@
+name: lagom
+version: "0.1.0"
+config-version: 2
+
+profile: lagom
+
+# Models, tests and macros are found by dbt's default paths.
+# Schemas are fixed by macros/generate_schema_name.sql: a model's `+schema`
+# is the schema name, with no target prefix.
+models:
+  lagom:
+    staging:
+      +materialized: table
+      +schema: silver
+    marts:
+      +materialized: table
+      +schema: gold

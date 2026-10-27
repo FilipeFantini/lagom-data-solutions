@@ -1,0 +1,219 @@
+# The USGS pipeline in prod: dlt loads new earthquake events into bronze,
+# then dbt rebuilds silver and gold (ADR-0015: jobs are CronJobs applied by
+# Argo CD from main, pinned to the environment's image digest). There is
+# deliberately no namespace here: Argo CD's destination
+# (apps/postgres-prod.yaml) sets it.
+#
+# Promoted from staging (ADR-0015): the image digests below are the ones
+# that ran in staging on 2026-10-18 (dlt loaded 9,929 events, dbt PASS=32).
+# A new image reaches prod only by copying a digest staging has run.
+#
+# A CronJob is a controller that creates a Job on a schedule; the Job creates
+# one Pod and retries or gives up by the rules below. Nothing in this file
+# stays resident: between runs there is no Pod, so it adds nothing to the
+# resident memory budget (architecture.md section 11).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: usgs-pipeline
+spec:
+  # Every 30 minutes. USGS publishes ~9 events an hour and the freshness check
+  # warns at 2 hours without a new revision (platform/warehouse/README.md), so
+  # a run every 30 minutes leaves room for about three failed runs in a row
+  # before the warning. Cheaper is not needed (a run is a Pod that exists for
+  # a minute or so) and more often would only repeat requests to a source that
+  # publishes a few events an hour.
+  schedule: "*/30 * * * *"
+
+  # Forbid: if the previous run is still going when the next is due, skip the
+  # new one instead of starting a second Pod. Two runs would both read dlt's
+  # cursor from Postgres and both write it back, so the later writer could move
+  # the cursor over events the other had not loaded yet. Allow is a race on the
+  # cursor; Replace would kill a run halfway through its load.
+  concurrencyPolicy: Forbid
+
+  # If the controller misses a start (it was down, or Forbid skipped it), it
+  # may still start the run up to 300 s late; later than that the run is
+  # counted as missed and the next slot takes over. Five minutes keeps a late
+  # run useful without stacking catch-up runs after an outage. A deadline also
+  # bounds the window in which the controller counts missed starts, so it never
+  # gives up scheduling for good after a long outage.
+  startingDeadlineSeconds: 300
+
+  # Keep the last successful Job for a look at its logs, and three failed ones
+  # to compare. Older Jobs and their Pods are deleted, so the Pod count
+  # below is not eaten by history.
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+
+  jobTemplate:
+    spec:
+      # One retry. A transient failure (USGS or the network down for a moment)
+      # is worth a second Pod; a deterministic one (bad SQL) will fail twice
+      # and stop, and the next slot tries again. More retries would only
+      # hammer the API and fill the history.
+      backoffLimit: 1
+      # A hard cap on a whole run, retries included, at 15 minutes. A normal
+      # run takes seconds to a minute or two; this stops a hung connection
+      # from holding the Pod, and its memory, until the next slot, and well
+      # before a stuck run would make Forbid skip several in a row.
+      activeDeadlineSeconds: 900
+      # The finished Job and its Pod are deleted after an hour, whatever the
+      # history limits say, so an old Pod does not linger against the quota.
+      ttlSecondsAfterFinished: 3600
+      template:
+        spec:
+          # The images are private on GHCR (ADR-0015). This Secret is a
+          # SealedSecret (ADR-0010) the operator adds to this directory; until
+          # it exists the Pod stays in ImagePullBackOff, which is loud, not
+          # silent.
+          imagePullSecrets:
+            - name: ghcr-pull
+          # A Job must not restart a failed container in place (the default,
+          # Always, is rejected for Jobs): a failure ends the Pod, and the
+          # Job's backoffLimit decides whether a new Pod is made.
+          restartPolicy: Never
+          # Both images create UID/GID 10001 (their Dockerfiles). runAsNonRoot
+          # makes the kubelet refuse a container that would run as root.
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
+
+          # Why an init container, not two containers: the kubelet runs init
+          # containers one at a time, in order, to completion, and starts the
+          # regular containers only if every one exited 0. So if `ingest`
+          # fails, `transform` never starts: dbt must not build silver and
+          # gold over a partial load, and a green dbt run over half-loaded
+          # bronze would be a silently wrong number. Two regular containers
+          # would start together and race.
+          #
+          # Memory, by the same rule: a Pod's request is the larger of its
+          # biggest init container and the sum of its regular containers
+          # (tools/resource_budget.py counts it that way), so running one
+          # after the other costs 256Mi, not 512Mi.
+          initContainers:
+            - name: ingest
+              # lagom-usgs, built from main at 2c91f08. The entrypoint is
+              # `python ingestion/pipeline.py`; with no arguments it is an
+              # incremental run from dlt's stored cursor. dlt keeps that
+              # cursor in Postgres, which is why a Pod with no disk can resume
+              # (services/usgs/README.md).
+              image: ghcr.io/filipefantini/lagom-usgs:2c91f08f9be5ce68e8a7dd0049ae29d0574837cc@sha256:59b2686a13958bb7c1ac5ecaeab6bc9f86790c73b01ea9d8f18a7f70a44214e2
+              env:
+                # dlt's connection string, from the Secret CloudNativePG
+                # generates for the `lagom` owner: `uri` is
+                # postgresql://lagom:<password>@postgres-rw.prod:5432/lagom,
+                # so the value never appears in Git. The URI carries no
+                # sslmode, so libpq (under psycopg2) falls back to PGSSLMODE:
+                # `require` makes TLS mandatory instead of the default
+                # `prefer`, which would silently accept a plaintext session.
+                - name: DESTINATION__POSTGRES__CREDENTIALS
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-app
+                      key: uri
+                - name: PGSSLMODE
+                  value: require
+              resources:
+                # Memory: request 256Mi for a Python process with dlt, its
+                # buffers, and a page of events; not yet measured, to be
+                # corrected from `kubectl top` on the first runs (runbook).
+                # CPU: 50m is the scheduler's share; there is no CPU limit, so
+                # a run may use idle CPU instead of being throttled.
+                requests:
+                  cpu: 50m
+                  memory: 256Mi
+                limits:
+                  memory: 512Mi
+              securityContext:
+                readOnlyRootFilesystem: true
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                # dlt's working files (DLT_DATA_DIR=/tmp/dlt) and HOME.
+                - name: tmp
+                  mountPath: /tmp
+
+          containers:
+            - name: transform
+              # lagom-warehouse, same commit. The entrypoint is `dbt build`
+              # over bronze, silver, and gold with their tests; a failing test
+              # fails the container, so the Job fails.
+              image: ghcr.io/filipefantini/lagom-warehouse:2c91f08f9be5ce68e8a7dd0049ae29d0574837cc@sha256:90ef4307d0d01645e79ba3b4c1bf396bcf0123919d8b8afcd8e14c5663571915
+              env:
+                # profiles.yml reads these and has no default for any of them.
+                # `host` is the read-write Service, postgres-rw.
+                - name: LAGOM_PG_HOST
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-app
+                      key: host
+                - name: LAGOM_PG_PORT
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-app
+                      key: port
+                - name: LAGOM_PG_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-app
+                      key: username
+                - name: LAGOM_PG_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-app
+                      key: password
+                - name: LAGOM_PG_DBNAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-app
+                      key: dbname
+                # In-cluster clients keep TLS (architecture.md, Postgres
+                # runbook). The runbook's `sslmode=disable` is only for
+                # `kubectl port-forward`, which dies after the first TLS
+                # session closes; this connection is Pod to Service on the
+                # node and has no such tunnel. `require` encrypts and fails
+                # if the server does not offer TLS; it does not verify the
+                # certificate, which the operator's own CA signs.
+                - name: LAGOM_PG_SSLMODE
+                  value: require
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 256Mi
+                limits:
+                  memory: 512Mi
+              securityContext:
+                readOnlyRootFilesystem: true
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                # dbt's compiled SQL, manifest, and logs (--target-path and
+                # --log-path point under /tmp).
+                - name: tmp
+                  mountPath: /tmp
+
+          volumes:
+            # The root filesystems are read-only, so each process needs a
+            # writable place. An emptyDir lives as long as the Pod and is
+            # shared by both containers, so dbt starts over dlt's leftovers
+            # without needing them. 64Mi: the first run reads 30 days of
+            # events (~6 500, a few MB of dlt files) and dbt writes a few MB
+            # of SQL and logs; this is more than ten times that. Past the limit
+            # the kubelet evicts the Pod, so a runaway write fails the run
+            # instead of filling the node's disk.
+            - name: tmp
+              emptyDir:
+                sizeLimit: 64Mi
+
+# Prod has no ResourceQuota (ADR-0007 puts quotas on staging, to protect prod
+# from it). The budget that holds here is the CI ceiling in architecture.md
+# section 11, which counts this Job with every other ephemeral job, as if all
+# ran at once. Prod's NetworkPolicy admits nothing from outside `prod` and
+# `cnpg-system`, but this Pod is inside `prod`, so it reaches Postgres; egress
+# is not restricted, so it reaches the USGS API. GOMEMLIMIT does not apply: both containers run Python.

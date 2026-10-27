@@ -1,0 +1,24 @@
+# The prod Postgres: one CloudNativePG Cluster, reconciled from
+# platform/infra/postgres-prod/. See ADR-0012.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: postgres-prod
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/FilipeFantini/lagom-data-solutions.git
+    targetRevision: main
+    path: platform/infra/postgres-prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: prod
+  syncPolicy:
+    automated:
+      # Never prune: removing the Cluster object deletes the database with it.
+      # A removal must never be one merge away.
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

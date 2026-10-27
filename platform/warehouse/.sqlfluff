@@ -1,0 +1,13 @@
+[sqlfluff]
+dialect = postgres
+# The jinja templater renders without a database. `ref`, `source` and `config`
+# are dbt functions; sqlfluff's templater supplies placeholders for them, which
+# is all linting needs.
+templater = jinja
+# Same line length as ruff in the Python projects.
+max_line_length = 100
+# ST06 wants simple columns before calculated ones. The column order of a model
+# is its published layout (engineering-protocol 16.3): it follows the meaning
+# of the columns (magnitude next to magnitude_class), not the kind of
+# expression, and reordering it changes no result. Every other rule is on.
+exclude_rules = structure.column_order

@@ -1,0 +1,27 @@
+# Connection settings come from the environment, never from this file, so it
+# can be committed. There is no default for any of them: a missing variable
+# stops dbt with the variable named, instead of connecting somewhere unintended.
+#
+#   LAGOM_PG_HOST      LAGOM_PG_PORT    LAGOM_PG_USER
+#   LAGOM_PG_PASSWORD  LAGOM_PG_DBNAME  LAGOM_PG_SSLMODE
+#
+# `dev` is the developer's database in staging's Postgres (ADR-0014), reached
+# through `kubectl port-forward`; see README.md in this directory.
+lagom:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('LAGOM_PG_HOST') }}"
+      port: "{{ env_var('LAGOM_PG_PORT') | as_number }}"
+      user: "{{ env_var('LAGOM_PG_USER') }}"
+      password: "{{ env_var('LAGOM_PG_PASSWORD') }}"
+      dbname: "{{ env_var('LAGOM_PG_DBNAME') }}"
+      sslmode: "{{ env_var('LAGOM_PG_SSLMODE') }}"
+      # dbt requires a default schema. Every model sets its own (silver or
+      # gold), so nothing is built here; generate_schema_name refuses a model
+      # that does not set one.
+      schema: public
+      # One thread: the database is a shared 4 GB node (ADR-0011), and the
+      # models are few and small.
+      threads: 1

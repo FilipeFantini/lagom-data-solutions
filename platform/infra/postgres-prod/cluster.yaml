@@ -1,0 +1,99 @@
+# The prod database: a single-instance PostgreSQL managed by the CloudNativePG
+# operator (ADR-0012). There is deliberately no namespace here: Argo CD's
+# destination (apps/postgres-prod.yaml) sets it.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres
+spec:
+  # One node, so a second instance would share the failure domain it is meant
+  # to protect against and cost another 300 MiB.
+  instances: 1
+
+  # PostgreSQL 18 on Debian trixie, "minimal" flavour (no barman-cloud tooling,
+  # smaller image). The tag names the minor for readers; the digest is what is
+  # pulled, because the tag is republished on every image rebuild. An operator
+  # restart or a node rebuild never pulls a Postgres other than the tested one.
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.6-minimal-trixie@sha256:c9be7f221a05b18fe65259d9136affbabe3b39ad91c3b68f8f2f990a45f35f38
+
+  storage:
+    size: 5Gi
+    storageClass: local-path
+
+  # The Pod's CPU request is a scheduling reservation; there is no CPU limit
+  # because it would only throttle (engineering-protocol.md §16.5). The memory
+  # limit is what the kernel enforces: above it the Pod is OOM-killed.
+  # `memory: 300Mi` is the request counted by the budget check and in
+  # architecture.md §11.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 300Mi
+    limits:
+      memory: 512Mi
+
+  postgresql:
+    # Sized to fit the 512Mi limit with headroom. Worst case, in MiB:
+    #   shared_buffers                      96   shared by all backends
+    #   25 connections x ~5 private         125  low end of architecture.md §8's
+    #                                            5-10 MB: the shared pages a
+    #                                            backend touches are already in
+    #                                            shared_buffers
+    #   25 x work_mem 4 (one sort each)     100  per sort or hash node, so one
+    #                                            query can use several
+    #   maintenance_work_mem                32   one VACUUM or CREATE INDEX
+    #   instance manager (Go, PID 1)        ~60
+    #   total                               ~413 of 512, ~100 left for the cgroup's
+    #                                            page cache and spikes
+    # These are estimates, to be replaced by the measurement taken under load.
+    # effective_cache_size allocates nothing: it only tells the planner how
+    # much of the data the OS is likely to have cached.
+    parameters:
+      shared_buffers: 96MB
+      max_connections: "25"
+      work_mem: 4MB
+      maintenance_work_mem: 32MB
+      effective_cache_size: 256MB
+
+  # The instance manager runs as PID 1 in the Pod and is a resident Go process
+  # (ADR-0011): without GOMEMLIMIT its heap can grow to twice its live size.
+  # Set before measurement, like the operator's; the measured value replaces it.
+  env:
+    - name: GOMEMLIMIT
+      value: 96MiB
+
+  # Creates the `lagom` database owned by the `lagom` role. The operator
+  # generates that role's password and stores it in the Secret `postgres-app`
+  # inside the cluster, so no credential is committed, sealed or otherwise.
+  bootstrap:
+    initdb:
+      database: lagom
+      owner: lagom
+
+  # No `postgres` superuser password is created or exposed. Administration goes
+  # through `kubectl exec` into the Pod, which reaches the local socket.
+  enableSuperuserAccess: false
+
+  # The read-only group for consumers of gold (architecture.md §10, permission
+  # model). The operator creates it and keeps it matching this block; it can
+  # do nothing on its own: NOLOGIN, no password, no attribute beyond the
+  # default. Its privileges are to be SELECT on gold's tables and USAGE on the
+  # gold schema, granted by dbt every time it builds a gold model, because a
+  # rebuilt table loses the grants of the one it replaces. Until that dbt
+  # change reaches the environment's image, the role holds no privilege. Each consumer, when one arrives, gets its
+  # own login role with `inRoles: [gold_reader]` and its own password, so
+  # revoking one consumer touches no other.
+  managed:
+    roles:
+      - name: gold_reader
+        ensure: present
+        login: false
+        superuser: false
+        createdb: false
+        createrole: false
+        inherit: true
+        comment: read-only on the gold schema; granted by dbt
+
+  # No backup, monitoring or pooler yet: backup waits for its trigger and
+  # PgBouncer for the first external BI consumer (ADR-0012, architecture.md §8).
+  # A disabled block would read as protection that is not there.

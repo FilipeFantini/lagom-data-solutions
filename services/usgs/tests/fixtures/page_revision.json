@@ -1,0 +1,93 @@
+{
+ "type": "FeatureCollection",
+ "metadata": {
+  "generated": 1792150943000,
+  "title": "USGS Earthquakes",
+  "status": 200,
+  "api": "2.8.1",
+  "limit": 2,
+  "offset": 1
+ },
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "mag": 4.3,
+    "place": "125 km WNW of Chauk, Burma (Myanmar)",
+    "time": 1791093307280,
+    "updated": 1792145098040,
+    "tz": null,
+    "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000tzh0",
+    "detail": "https://earthquake.usgs.gov/fdsnws/event/1/query?eventid=us6000tzh0&format=geojson",
+    "felt": null,
+    "cdi": null,
+    "mmi": null,
+    "alert": null,
+    "status": "reviewed",
+    "tsunami": 0,
+    "sig": 326,
+    "net": "us",
+    "code": "6000tzh0",
+    "ids": ",us6000tzh0,",
+    "sources": ",us,",
+    "types": ",origin,phase-data,",
+    "nst": 55,
+    "dmin": 1.107,
+    "rms": 0.83,
+    "gap": 91,
+    "magType": "mb",
+    "type": "earthquake",
+    "title": "M 4.6 - 125 km WNW of Chauk, Burma (Myanmar)"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     93.7574,
+     21.4444,
+     59.617
+    ]
+   },
+   "id": "us6000tzh0"
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "mag": 4.6,
+    "place": "West Chile Rise",
+    "time": 1791100596025,
+    "updated": 1792141498040,
+    "tz": null,
+    "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000u0y1",
+    "detail": "https://earthquake.usgs.gov/fdsnws/event/1/query?eventid=us6000u0y1&format=geojson",
+    "felt": null,
+    "cdi": null,
+    "mmi": null,
+    "alert": null,
+    "status": "reviewed",
+    "tsunami": 0,
+    "sig": 326,
+    "net": "us",
+    "code": "6000u0y1",
+    "ids": ",us6000u0y1,",
+    "sources": ",us,",
+    "types": ",origin,phase-data,",
+    "nst": 27,
+    "dmin": 8.535,
+    "rms": 0.39,
+    "gap": 145,
+    "magType": "mb",
+    "type": "earthquake",
+    "title": "M 4.6 - West Chile Rise"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -82.5592,
+     -43.3981,
+     10
+    ]
+   },
+   "id": "us6000u0y1"
+  }
+ ]
+}
