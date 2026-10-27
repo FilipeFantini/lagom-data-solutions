@@ -10,11 +10,15 @@
 # - No Namespace object: the Application creates it (CreateNamespace).
 # - Storage path /var/lib/rancher/k3s/storage, k3s's, where the existing
 #   volumes live. Upstream uses /opt/local-path-provisioner.
-# - k3s's setup script, which also closes the parent directory (chmod 700).
+# - k3s's setup and teardown scripts: setup also closes the parent directory
+#   (chmod 700); both quote ${VOL_DIR} with braces.
 # - The helper Pod image pinned to k3s's busybox mirror, already on the node.
 #   Upstream names busybox with no tag.
 # - The StorageClass is the cluster default, as k3s marked it.
 # - No --debug flag, as k3s ran it.
+# - Priority system-node-critical, as k3s ran it, so memory pressure evicts
+#   it last. k3s's CriticalAddonsOnly toleration is not kept: the node has
+#   no taints.
 # - Memory request and limit, and a CPU request (engineering-protocol §16.5).
 #   Measured at 47 MiB on 2026-10-27.
 #
@@ -102,6 +106,7 @@ spec:
         app: local-path-provisioner
     spec:
       serviceAccountName: local-path-provisioner-service-account
+      priorityClassName: system-node-critical
       containers:
         - name: local-path-provisioner
           image: docker.io/rancher/local-path-provisioner:v0.0.37
