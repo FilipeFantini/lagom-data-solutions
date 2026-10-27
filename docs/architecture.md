@@ -298,7 +298,12 @@ from `main` ([ADR-0015](adr/0015-images-on-ghcr.md)). CI enforces the order:
 prod manifests pin an image without a digest, or a digest staging had not
 pinned on `main` before that change — Postgres's `imageName` included. It
 cannot see whether staging's run succeeded; the operator confirms that before
-opening the prod pull request.
+opening the prod pull request. Beside it,
+[`tools/manifest_policy.py`](../tools/manifest_policy.py) fails an Application
+with no explicit `prune`, a chart not pinned to an exact version, a Git source
+outside this repository, or a rendered image without a tag or digest (this
+repository's own images need a digest); what it does not check is in
+[`tools/README.md`](../tools/README.md#manifest-policy-check).
 
 **Images.** Two, built by [`images.yml`](../.github/workflows/images.yml) on a
 native arm64 runner: `ghcr.io/filipefantini/lagom-usgs` (the dlt pipeline,

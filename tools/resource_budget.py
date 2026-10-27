@@ -201,6 +201,16 @@ def render_application(repo: Path, app: dict[str, Any]) -> list[dict[str, Any]]:
     return docs
 
 
+def load_applications(repo: Path) -> list[dict[str, Any]]:
+    """Every Argo CD Application in platform/infra/apps/, in file order."""
+    return [
+        doc
+        for app_file in sorted((repo / "platform/infra/apps").glob("*.y*ml"))
+        for doc in _load_yaml(app_file.read_text())
+        if doc.get("kind") == "Application"
+    ]
+
+
 @dataclass(frozen=True)
 class Workload:
     app: str
@@ -243,27 +253,24 @@ def main() -> int:
     ephemeral: list[Workload] = []
     problems: list[str] = []
 
-    for app_file in sorted((repo / "platform/infra/apps").glob("*.y*ml")):
-        for app in _load_yaml(app_file.read_text()):
-            if app.get("kind") != "Application":
+    for app in load_applications(repo):
+        app_name = app["metadata"]["name"]
+        for doc in render_application(repo, app):
+            if is_cnpg_cluster(doc):
+                label = f"{app_name}/Cluster/{doc['metadata']['name']}"
+                problems += cnpg_violations(label, doc)
+                resident.append(cnpg_workload(app_name, doc))
                 continue
-            app_name = app["metadata"]["name"]
-            for doc in render_application(repo, app):
-                if is_cnpg_cluster(doc):
-                    label = f"{app_name}/Cluster/{doc['metadata']['name']}"
-                    problems += cnpg_violations(label, doc)
-                    resident.append(cnpg_workload(app_name, doc))
-                    continue
-                kind = doc.get("kind")
-                if kind not in RESIDENT_KINDS | EPHEMERAL_KINDS:
-                    continue
-                spec = pod_spec(doc)
-                label = f"{app_name}/{kind}/{doc['metadata']['name']}"
-                problems += violations(label, spec)
-                workload = Workload(
-                    app_name, kind, doc["metadata"]["name"], replicas(doc), pod_request_bytes(spec)
-                )
-                (resident if kind in RESIDENT_KINDS else ephemeral).append(workload)
+            kind = doc.get("kind")
+            if kind not in RESIDENT_KINDS | EPHEMERAL_KINDS:
+                continue
+            spec = pod_spec(doc)
+            label = f"{app_name}/{kind}/{doc['metadata']['name']}"
+            problems += violations(label, spec)
+            workload = Workload(
+                app_name, kind, doc["metadata"]["name"], replicas(doc), pod_request_bytes(spec)
+            )
+            (resident if kind in RESIDENT_KINDS else ephemeral).append(workload)
 
     builtins = args.k3s_builtins_mi * MI
     jobs = jobs_peak_bytes(ephemeral)
