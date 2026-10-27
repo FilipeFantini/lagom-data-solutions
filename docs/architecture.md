@@ -474,8 +474,9 @@ that, and RSS overstates shared pages, so the real margin is larger
 [ADR-0011](adr/0011-memory-viability-on-4gb.md)). M2 fits: 2,034 MiB with every
 ephemeral job counted as running at once, ~220 MiB to spare; **M3 as planned
 does not** (Dagster's 600 MB takes it ~380 MiB over), so
-the move to the 8 GB node is expected then — the trigger is in the
-[roadmap](roadmap.md).
+the move to the 8 GB node was decided for M3
+([ADR-0020](adr/0020-move-to-the-8-gb-node.md)). This ceiling holds until the
+node is resized; the next one is measured on the new node.
 
 **How CI enforces it.** [`tools/resource_budget.py`](../tools/resource_budget.py)
 runs on every pull request ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)).
@@ -545,8 +546,8 @@ the totals above unchanged at this precision. Evidence runs in CI.
 
 The full design no longer leaves meaningful room for jobs on this node. That is
 the measured cost of the overhead above, recorded here rather than discovered
-when the additions arrive. The vertical fallback is in
-[ADR-0002](adr/0002-single-node-k3s-hetzner.md): CAX21, 8 GB, one reboot.
+when the additions arrive. The move to a CAX21 (8 GB, one reboot) is decided for M3:
+[ADR-0020](adr/0020-move-to-the-8-gb-node.md).
 
 ## 12. Accepted risks
 
@@ -562,6 +563,13 @@ when the additions arrive. The vertical fallback is in
 - **Scaling.** Vertical is easy — Hetzner resizes, one reboot. Horizontal needs
   care with the datastore (SQLite to etcd, three nodes) and with storage
   (local-path pins the volume to a node; either node affinity or Longhorn).
+- **Technical debt: no Postgres backup** (accepted 2026-10-27,
+  [ADR-0019](adr/0019-postgres-backup-deferred.md)). Losing the node loses
+  Postgres. Recovery is a rebuild from Git and a re-load of bronze from USGS,
+  which has not been run and does not bring back earlier event revisions.
+  Paid when the backup trigger in the [roadmap](roadmap.md#trigger-table)
+  fires, at the latest before Dagster's metastore in M3; the mechanism and
+  destination are chosen then ([ADR-0012](adr/0012-cloudnative-pg.md)).
 - **Changes to the gates themselves are protected by convention only.**
   Branch protection (since 2026-10-27) requires the checks to pass, but a pull
   request runs the workflow as it edits it — see
