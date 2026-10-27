@@ -179,11 +179,12 @@ passes.
 - [x] Image build in CI (arm64, GHCR, private) and sealed pull secrets per
       namespace — [ADR-0015](adr/0015-images-on-ghcr.md); sizes and the
       private-package check in [architecture.md](architecture.md) §9a, Images
-- [ ] **Pipeline heartbeat** — each successful run pings Healthchecks.io, a
+- [x] **Pipeline heartbeat** — each successful run pings Healthchecks.io, a
       missing ping e-mails the operator
       ([ADR-0018](adr/0018-pipeline-heartbeat.md)); after a 90-minute failure
-      on 2026-10-27 that alerted nobody. Staging verified 2026-10-27 (on-demand
-      run: ingest, transform, `heartbeat sent: HTTP 200`); prod follows
+      on 2026-10-27 that alerted nobody. Verified 2026-10-27: staging on
+      demand (`heartbeat sent: HTTP 200`), prod's 12:00 run (`ingest`,
+      `transform` and `heartbeat` all exit 0, in 18 s)
 - [ ] **Postgres backup** to a destination off the node, on a schedule — the
       destination is chosen then; R2's free tier is the candidate. The
       mechanism too, measured on the node: Barman Cloud Plugin (needs
