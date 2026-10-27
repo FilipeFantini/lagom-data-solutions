@@ -159,3 +159,23 @@ Publication cannot be reversed in practice: the repository can be made private
 again, but what was public may already be cloned or indexed. Anonymous HTTPS
 can be reversed by registering a deploy key again, with the procedure that
 ADR-0009 describes.
+
+## Notes after acceptance
+
+The text above is kept as accepted. These notes record what changed since,
+without rewriting it.
+
+- **2026-10-27 — the cutover needed no manual step, and Argo CD never
+  paused.** Step 3 predicted a comparison error until step 4. It did not
+  happen: GitHub lets any SSH key it authenticates, including a deploy key
+  registered on another repository, read a public repository. So the old SSH
+  URL kept working against the new repository; `root`, which syncs itself
+  automatically, applied its own manifest from the snapshot, and the six
+  child Applications were re-rendered with the HTTPS URL. Before any command
+  was run by hand, all seven Applications already named the HTTPS URL and
+  were synced at the snapshot commit. Step 4 was therefore skipped. The
+  deploy key was then deleted, and a forced refresh of `root` and `hello`
+  succeeded with no condition reported: Argo CD reads the repository with no
+  credential at all. The repository Secret in `argocd` is inert from that
+  point (its URL matches no Application and its key is revoked) and is
+  removed by hand.
