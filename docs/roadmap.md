@@ -113,8 +113,11 @@ its own.
       minutes with no manual command; see the runbook's Deploy section
 - [x] Resource budget check in CI — `tools/resource_budget.py`, see
       [architecture.md](architecture.md#11-resource-budget) §11
-- [ ] Memory limits on k3s's own components (Traefik, local-path,
-      metrics-server, servicelb) through `HelmChartConfig`
+- [x] Memory limits on k3s's own components — not through `HelmChartConfig`,
+      which reaches Traefik only: Traefik and servicelb disabled (nothing used
+      them), local-path and metrics-server moved to Argo CD with requests and
+      limits, CoreDNS kept (it declares both)
+      ([ADR-0021](adr/0021-k3s-packaged-components-under-git.md))
 - [x] PR workflow active from the first commit (only `main` is watched by Argo
       CD) — enforced by the ruleset on `main` since 2026-10-27; see
       [CONTRIBUTING](../CONTRIBUTING.md#branch-protection)

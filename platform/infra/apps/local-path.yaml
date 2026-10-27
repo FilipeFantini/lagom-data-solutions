@@ -1,0 +1,25 @@
+# local-path-provisioner: the storage class every Postgres volume uses,
+# reconciled from platform/infra/local-path/. Replaces the k3s addon
+# (ADR-0021).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: local-path
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/FilipeFantini/lagom-data-solutions.git
+    targetRevision: main
+    path: platform/infra/local-path
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: local-path-storage
+  syncPolicy:
+    automated:
+      # Never prune: without the provisioner no volume can be created or
+      # released, and the StorageClass must not be one merge away from gone.
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
