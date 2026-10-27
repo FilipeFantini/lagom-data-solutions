@@ -9,11 +9,15 @@
 4 GB CAX11: with Dagster at the 600 MiB measured in
 [ADR-0011](0011-memory-viability-on-4gb.md)'s spike, declared requests reach
 about 2,630 MiB against a 2.2 GB ceiling (about −380 MiB, its 2026-10-19 note).
-The roadmap's trigger for the 8 GB node is "a planned M3 or M5 component does
-not fit under the 2.2 GB ceiling after tuning".
+ADR-0011 (decision 4) and the roadmap's trigger table set the condition for
+the 8 GB node: a planned component that does not fit under the ceiling after
+tuning, observed rather than anticipated.
 
-Tuning would have to remove about 380 MiB of declared requests. Nothing
-identified so far comes close: memory limits on k3s's own components (an open
+This ADR departs from "observed": the projection stands in for the
+measurement, because ADR-0016 allowed that Dagster's real requests might come
+in about 150 MiB under the spike, and the gap is now about 380 MiB. Tuning
+would have to remove that much from declared requests. Nothing identified so
+far comes close: memory limits on k3s's own components (an open
 M1 item) bound what they may grow to, and are done for that reason, not to
 make room for Dagster.
 
@@ -27,8 +31,9 @@ Dagster enters (M3).** Decided by the operator on 2026-10-27, without waiting
 for Dagster's own measurement, since the projected gap is too large for it to
 close.
 
-**How:** a resize in place, as ADR-0002 and ADR-0011 describe — one reboot,
-disk and addresses kept. The operator retries while Hetzner has no capacity.
+**How:** a resize in place — one reboot (ADR-0002, ADR-0011). By Hetzner's
+own behaviour, not stated in those ADRs, the server keeps its addresses, and
+its disk when the resize is CPU and RAM only. The operator retries while Hetzner has no capacity.
 
 **If capacity does not return by the time M3 starts:** a new CAX21 where
 Hetzner has capacity, built from Git. That rebuild is also the M2
@@ -44,9 +49,9 @@ derived by proportion.
 ## Consequences
 
 **Positive.** M3 is planned against a node it fits on. The 8 GB node also
-leaves room under the ceiling for the backup's resident cost
-([ADR-0012](0012-cloudnative-pg.md): the Barman Cloud Plugin plus
-cert-manager), which on 4 GB competed with Dagster.
+leaves room under the ceiling for the backup's resident cost — for instance
+the Barman Cloud Plugin plus cert-manager, if that option is chosen
+([ADR-0012](0012-cloudnative-pg.md)) — which on 4 GB competed with Dagster.
 
 **Negative.**
 
