@@ -113,8 +113,11 @@ its own.
       minutes with no manual command; see the runbook's Deploy section
 - [x] Resource budget check in CI — `tools/resource_budget.py`, see
       [architecture.md](architecture.md#11-resource-budget) §11
-- [ ] Memory limits on k3s's own components (Traefik, local-path,
-      metrics-server, servicelb) through `HelmChartConfig`
+- [x] Memory limits on k3s's own components — not through `HelmChartConfig`,
+      which reaches Traefik only: Traefik and servicelb disabled (nothing used
+      them), local-path and metrics-server moved to Argo CD with requests and
+      limits, CoreDNS kept (it declares both)
+      ([ADR-0021](adr/0021-k3s-packaged-components-under-git.md))
 - [x] PR workflow active from the first commit (only `main` is watched by Argo
       CD) — enforced by the ruleset on `main` since 2026-10-27; see
       [CONTRIBUTING](../CONTRIBUTING.md#branch-protection)
@@ -289,11 +292,15 @@ by its own trigger, like any other piece.
       on-demand runs. Triggered 2026-10-27, when agents first created Jobs to
       validate a promotion. What it does not stop is in
       [CONTRIBUTING](../CONTRIBUTING.md#workflow)
-- [ ] **Manifest policy check in CI**, in `tools/` beside the budget check:
+- [x] **Manifest policy check in CI**, in `tools/` beside the budget check:
       pinned chart and image versions, an explicit prune policy on every
       Application — with the next Argo CD Application (the Postgres `Cluster`).
       **Trigger reached in M2:** the Postgres Applications exist; the check
-      does not
+      does not. Done in [`tools/manifest_policy.py`](../tools/manifest_policy.py):
+      the four rules and what the check does not cover are in
+      [`tools/README.md`](../tools/README.md#manifest-policy-check). The
+      `manifest policy` job is required only once the operator adds it to the
+      `main` ruleset
 - [ ] Data gates — `dbt test` and reconciliation in CI are M2 and M3 items
       above, not repeated here
 - [x] **CI check that prod only pins a digest staging ran** —

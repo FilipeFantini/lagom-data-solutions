@@ -85,7 +85,7 @@ products/            what a consumer sees
   <product>/         Evidence site, Streamlit app, Power BI project
 tools/               development and operational scripts
 docs/                architecture, protocol, ADRs, runbook
-.github/             CI: lint, types, tests, dbt parse, resource budget (M1); image builds, secret scan, promotion check (M2)
+.github/             CI: lint, types, tests, dbt parse, resource budget (M1); image builds, secret scan, promotion check (M2); manifest policy
 .claude/             reviewer and implementer agents; denied git commands — CONTRIBUTING.md
 ```
 

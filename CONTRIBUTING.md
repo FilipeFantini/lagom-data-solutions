@@ -95,7 +95,9 @@ CI runs on every pull request and on `main`
 for `tools/` and for every project under `services/`; lint and parse of the dbt
 project; a secret scan of the whole history (see [Secrets](#secrets)); the
 promotion check (prod pins only digests staging pinned first,
-[ADR-0015](docs/adr/0015-images-on-ghcr.md)); and the resource budget check.
+[ADR-0015](docs/adr/0015-images-on-ghcr.md)); the resource budget check; and the
+manifest policy check (explicit prune, pinned chart versions and images,
+[`tools/README.md`](tools/README.md#manifest-policy-check)).
 **A red check is not merged.**
 
 ### Branch protection
@@ -106,12 +108,14 @@ promotion check (prod pins only digests staging pinned first,
 enforces, with no bypass — the operator follows the same rules:
 
 - changes reach `main` only through a pull request;
-- the six CI checks above must pass, named exactly as their jobs report:
+- the CI checks above must pass, named exactly as their jobs report:
   `tools (lint, types, tests)`, `services (lint, types, tests)`,
-  `warehouse (lint, parse)`, `secret scan`, `resource budget`, and
-  `promotion (prod pins only staging's digests)` — a renamed job must be
-  renamed in the ruleset too, or every pull request waits for a check that
-  never reports;
+  `warehouse (lint, parse)`, `secret scan`, `resource budget`,
+  `promotion (prod pins only staging's digests)`, and `manifest policy` — a
+  renamed job must be renamed in the ruleset too, or every pull request waits
+  for a check that never reports. **`manifest policy` is required only after
+  the operator adds it to the ruleset**; the job runs and reports before that,
+  but nothing blocks a merge on it;
 - `main` cannot be force-pushed or deleted.
 
 Inspect what applies with

@@ -86,8 +86,8 @@ behaviour:
 
 | Default | Market standard | Our choice |
 |---|---|---|
-| Traefik as ingress | ingress-nginx | keep Traefik, knowing it is a k3s choice |
-| local-path storage | a real CSI driver | fine on a single node; volume is pinned to the node |
+| Traefik as ingress | ingress-nginx | **disabled**: nothing uses an ingress, and servicelb published it on the public address ([ADR-0021](adr/0021-k3s-packaged-components-under-git.md)) |
+| local-path storage | a real CSI driver | fine on a single node; volume is pinned to the node. Installed by Argo CD, not as a k3s addon ([ADR-0021](adr/0021-k3s-packaged-components-under-git.md)) |
 | SQLite datastore | etcd | no HA; k3s can run embedded etcd if needed |
 
 None of this appears in our manifests. Deployments, Services, RBAC, CRDs,
@@ -298,7 +298,12 @@ from `main` ([ADR-0015](adr/0015-images-on-ghcr.md)). CI enforces the order:
 prod manifests pin an image without a digest, or a digest staging had not
 pinned on `main` before that change — Postgres's `imageName` included. It
 cannot see whether staging's run succeeded; the operator confirms that before
-opening the prod pull request.
+opening the prod pull request. Beside it,
+[`tools/manifest_policy.py`](../tools/manifest_policy.py) fails an Application
+with no explicit `prune`, a chart not pinned to an exact version, a Git source
+outside this repository, or a rendered image without a tag or digest (this
+repository's own images need a digest); what it does not check is in
+[`tools/README.md`](../tools/README.md#manifest-policy-check).
 
 **Images.** Two, built by [`images.yml`](../.github/workflows/images.yml) on a
 native arm64 runner: `ghcr.io/filipefantini/lagom-usgs` (the dlt pipeline,
@@ -485,26 +490,29 @@ lacks a memory request, a memory limit, or a CPU request (for a CloudNativePG
 `Cluster`, whose Pods the operator creates, its `spec.resources` and
 `spec.instances` stand in for the Pod spec), or if the total
 exceeds the ceiling above, which it reads from this file. The total is resident
-requests, plus **every ephemeral job at once**, plus **170 MiB for components k3s
-installs outside Git**: CoreDNS and metrics-server declare 70 MiB each; Traefik
-and local-path declare nothing and were measured at ~20 and ~10 MiB.
+requests, plus **every ephemeral job at once**, plus an **allowance for
+components k3s installs outside Git**.
 
-**Known exception:** those k3s components are not in Git, so the check cannot
-see them, and Traefik, local-path, metrics-server, and servicelb declare no
-memory limit. Bringing them under the rule through k3s's `HelmChartConfig` is an
-open item in the roadmap.
+**Known exception: CoreDNS.** Since [ADR-0021](adr/0021-k3s-packaged-components-under-git.md)
+it is the only component k3s still installs: Traefik and servicelb are
+disabled, and local-path and metrics-server are Argo CD Applications that the
+check counts like any other. CoreDNS is outside Git, so the check cannot see
+it, but it declares a request (70 MiB) and a limit (170 MiB). The allowance in
+`tools/resource_budget.py` is still 170 MiB, from when it covered all four;
+lowering it to 70 MiB changes a gate, so it is a separate change merged by the
+operator. Until then the check over-counts by 100 MiB.
 
 **Core (M1–M3)** — workloads that run as pods:
 
 | Component | Request | Source |
 |---|---|---|
-| kube-system (CoreDNS, Traefik, metrics-server, local-path) | ~65 MB | measured idle; Traefik 20 MB of it |
+| kube-system (CoreDNS, metrics-server) and local-path | ~215 MB | requests: CoreDNS 70, metrics-server 80, local-path 64 MiB; Traefik disabled ([ADR-0021](adr/0021-k3s-packaged-components-under-git.md)). Measured 2026-10-27: 71, 73 and 47 MiB |
 | Argo CD (no Dex) | 608 MB | set from measurement with three Applications: application-controller 290–465 MiB before `GOMEMLIMIT`, 190–285 MiB after (request 384, limit 640, `GOMEMLIMIT` 540MiB), repo-server ~105, server ~37, redis ~10 ([ADR-0009](adr/0009-argocd-bootstrap-and-self-management.md)) |
 | CloudNativePG operator | 64 MB | measured 24 MiB with no Cluster, 31 MiB reconciling one (request 64, limit 192, `GOMEMLIMIT` 150MiB) ([ADR-0012](adr/0012-cloudnative-pg.md)) |
 | Postgres (prod `Cluster`, 1 instance) | 300 MB | request 300 MiB, limit 512 MiB; `shared_buffers` 96MB, `max_connections` 25, `work_mem` 4MB, `maintenance_work_mem` 32MB, `effective_cache_size` 256MB, instance manager `GOMEMLIMIT` 96MiB. Measured idle on 2026-10-16: pod working set 47 MiB, cgroup 55 MiB (25 anonymous, 25 page cache), instance manager ~62 MiB RSS including shared pages. The request is kept for dbt load, measured in M2. Counted by the CI check, which reads the `Cluster` object because the operator creates its Pods ([`platform/infra/postgres-prod/`](../platform/infra/postgres-prod/cluster.yaml)) |
 | Dagster | 600 MB | measured in a spike: ~550 MiB resident with real libraries ([ADR-0011](adr/0011-memory-viability-on-4gb.md)) |
-| **Core requests** | **~1.65 GB** | |
-| **Left within the ceiling for ephemeral jobs** | **~0.55 GB** | |
+| **Core requests** | **~1.79 GB** | |
+| **Left within the ceiling for ephemeral jobs** | **~0.41 GB** | |
 
 Staging adds ~300 MB for its own Postgres
 ([ADR-0007](adr/0007-three-environments.md)): a second `Cluster` with the same
@@ -541,8 +549,8 @@ the totals above unchanged at this precision. Evidence runs in CI.
 | Streamlit | 250 MB |
 | Grafana | 150 MB |
 | PgBouncer | 5 MB |
-| **Core + staging + additions** | **~2.45 GB of requests** |
-| **Left within the ceiling for ephemeral jobs** | **none — ~0.25 GB over** |
+| **Core + staging + additions** | **~2.6 GB of requests** |
+| **Left within the ceiling for ephemeral jobs** | **none — ~0.4 GB over** |
 
 The full design no longer leaves meaningful room for jobs on this node. That is
 the measured cost of the overhead above, recorded here rather than discovered
@@ -708,6 +716,11 @@ tls-san:
   - lagom-shared-01.<tailnet>.ts.net
   - <node-tailnet-ip>
 secrets-encryption: true
+disable:
+  - traefik
+  - servicelb
+  - local-storage
+  - metrics-server
 EOF
 sudo chmod 0600 /etc/rancher/k3s/config.yaml
 curl -sfL https://get.k3s.io -o /tmp/k3s-install.sh
@@ -720,6 +733,10 @@ k3s reads `config.yaml`, where each key is the long form of a command-line flag.
 - `tls-san` adds names to the API server's certificate. `kubectl` checks that
   the name it connects to is in the certificate, so the tailnet name must be
   listed or every connection over Tailscale fails TLS verification.
+- `disable` keeps k3s from installing those packaged components; a component
+  disabled on a running cluster is uninstalled
+  ([ADR-0021](adr/0021-k3s-packaged-components-under-git.md), which also says
+  in what order the switch was made).
 - `secrets-encryption` encrypts Secret objects in the datastore (SQLite) with a
   key generated on the node. It protects a copy of the datastore — a stolen
   disk image or backup. It does not protect against root on the node, which
@@ -753,10 +770,13 @@ kubectl get --raw /api/v1/nodes/lagom-shared-01/proxy/stats/summary   # CPU of "
 Restarting k3s does not stop running containers (`KillMode=process`); only the
 API is unavailable for a few seconds.
 
-k3s defaults are kept, including metrics-server, which `kubectl top` needs to
-measure the budget in §11. Traefik's LoadBalancer is served by k3s's servicelb
-on ports 80 and 443 of the public address, and the API (6443) and kubelet
-(10250) listen on all interfaces. **The Hetzner firewall is what keeps them
+Traefik and servicelb are not installed, and local-path and metrics-server are
+installed by Argo CD instead of k3s ([ADR-0021](adr/0021-k3s-packaged-components-under-git.md)):
+the `disable:` list in `config.yaml` above. metrics-server is what `kubectl top`
+needs to measure the budget in §11. **On a fresh install the cluster has no
+storage class until Argo CD syncs `local-path`**; the Postgres `Cluster`s wait
+for it (their volumes bind on first use). The API (6443) and kubelet (10250)
+listen on all interfaces. **The Hetzner firewall is what keeps them
 private** — which is why the check below probes from outside.
 
 **Verify:**
@@ -810,8 +830,9 @@ rejected.
 rule for port 22 is removed from the Hetzner firewall. The firewall itself stays
 attached with **no inbound rules, which denies all inbound traffic** — do not
 delete or detach it: it is the only thing keeping the API (6443), the kubelet
-(10250), and Traefik (80, 443) off the internet, since k3s listens on every
-interface. Outbound is unrestricted. Tailscale still connects directly, because
+(10250), and anything a future LoadBalancer Service publishes off the internet,
+since k3s listens on every interface. (Until 2026-10-27 that included Traefik
+on 80 and 443; [ADR-0021](adr/0021-k3s-packaged-components-under-git.md).) Outbound is unrestricted. Tailscale still connects directly, because
 the firewall is stateful and NAT traversal starts from outbound packets.
 
 **Break-glass.** If Tailscale fails on the node, re-add an inbound rule for port

@@ -21,7 +21,7 @@ decision, consequences, and how to reverse it.
 | ADR | Title | Status |
 |---|---|---|
 | [0001](0001-use-adrs.md) | Record architecture decisions in ADRs | Accepted |
-| [0002](0002-single-node-k3s-hetzner.md) | Single-node k3s on a Hetzner CAX11 | Accepted |
+| [0002](0002-single-node-k3s-hetzner.md) | Single-node k3s on a Hetzner CAX11 | Accepted, partially superseded by 0021 |
 | [0003](0003-ingestion-split-dlt-benthos.md) | Split ingestion: dlt for batch, Redpanda Connect for events | Accepted |
 | [0004](0004-table-format.md) | Open table format: Iceberg preferred, Delta as fallback | Proposed, deferred by 0008 |
 | [0005](0005-duckdb-and-postgres-roles.md) | DuckDB as compute engine, Postgres as operational spine | Accepted, partially superseded by 0008 |
@@ -40,3 +40,4 @@ decision, consequences, and how to reverse it.
 | [0018](0018-pipeline-heartbeat.md) | Pipeline liveness by heartbeat to Healthchecks.io | Accepted |
 | [0019](0019-postgres-backup-deferred.md) | Postgres backup deferred until the node holds state no source can rebuild | Accepted |
 | [0020](0020-move-to-the-8-gb-node.md) | Move to the 8 GB node (CAX21) for M3, pending Hetzner capacity | Accepted |
+| [0021](0021-k3s-packaged-components-under-git.md) | Traefik and servicelb disabled; local-path and metrics-server managed by Argo CD | Accepted |
