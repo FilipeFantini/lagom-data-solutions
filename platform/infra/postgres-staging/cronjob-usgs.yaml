@@ -139,7 +139,7 @@ spec:
               # silver, and gold with their tests; a failing test fails the
               # container, so the Job fails. Each image is pinned to the commit
               # that last changed it, so the two tags can differ.
-              image: ghcr.io/filipefantini/lagom-warehouse:c09a00ba4aec940a316be1766a5c0ea3ff05ef29@sha256:3072401e2b8c12ebb4753a3ac666bd09444008e06120b7e9551152ef7896a507
+              image: ghcr.io/filipefantini/lagom-warehouse:1fd999751d5e0a9fc91c77842f2bf8a42fb4cbb0@sha256:be9bfb62a5ed604c36ea2fe10a837efabeea7f719ab70fb8805333f24ce98445
               env:
                 # profiles.yml reads these and has no default for any of them.
                 # `host` is the read-write Service, postgres-rw.
@@ -204,7 +204,7 @@ spec:
             # failed ping fails the Job loudly. It never prints the URL: whoever
             # holds it can report a success and silence the alarm.
             - name: heartbeat
-              image: ghcr.io/filipefantini/lagom-warehouse:c09a00ba4aec940a316be1766a5c0ea3ff05ef29@sha256:3072401e2b8c12ebb4753a3ac666bd09444008e06120b7e9551152ef7896a507
+              image: ghcr.io/filipefantini/lagom-warehouse:1fd999751d5e0a9fc91c77842f2bf8a42fb4cbb0@sha256:be9bfb62a5ed604c36ea2fe10a837efabeea7f719ab70fb8805333f24ce98445
               command:
                 - python
                 - -c
