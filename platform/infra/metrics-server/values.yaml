@@ -1,0 +1,14 @@
+# Helm values for metrics-server.
+# Chart: metrics-server/metrics-server 3.14.0 (metrics-server v0.9.0), from
+# https://kubernetes-sigs.github.io/metrics-server/. Only non-defaults are set
+# here. The chart's defaultArgs already match what the k3s addon ran (cert dir,
+# address types, node status port, 15 s resolution); the cipher list below is
+# the one k3s added (ADR-0021).
+args:
+  - --tls-cipher-suites=TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305
+
+# Measured at 73 MiB on 2026-10-27, the chart's default request (200Mi) is
+# almost three times that. CPU is compressible and was measured at 7m.
+resources:
+  requests: {cpu: 20m, memory: 80Mi}
+  limits: {memory: 160Mi}

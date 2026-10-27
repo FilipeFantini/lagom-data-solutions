@@ -1,0 +1,30 @@
+# metrics-server: serves `kubectl top`, which measures the resource budget
+# (architecture.md §11). The upstream chart, replacing the k3s addon
+# (ADR-0021); chart 3.14.0 ships metrics-server v0.9.0, the version k3s ran.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: metrics-server
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://kubernetes-sigs.github.io/metrics-server/
+      chart: metrics-server
+      targetRevision: 3.14.0
+      helm:
+        releaseName: metrics-server
+        valueFiles:
+          - $values/platform/infra/metrics-server/values.yaml
+    - repoURL: https://github.com/FilipeFantini/lagom-data-solutions.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      # Prune is safe: metrics-server holds no state, and a removed object
+      # only costs `kubectl top` until the next sync.
+      prune: true
+      selfHeal: true

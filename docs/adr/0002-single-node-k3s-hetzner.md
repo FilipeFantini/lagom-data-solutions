@@ -1,6 +1,7 @@
 # ADR-0002 — Single-node k3s on a Hetzner CAX11
 
-- **Status:** Accepted
+- **Status:** Accepted — partially superseded by [ADR-0021](0021-k3s-packaged-components-under-git.md)
+  (Traefik, servicelb, local-path and metrics-server are no longer k3s defaults)
 - **Date:** 2026-10-12
 
 ## Context and problem
