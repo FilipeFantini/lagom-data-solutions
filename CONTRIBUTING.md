@@ -83,8 +83,12 @@ promotion check (prod pins only digests staging pinned first,
 enforces, with no bypass — the operator follows the same rules:
 
 - changes reach `main` only through a pull request;
-- the six CI checks above must pass: `tools`, `services`, `warehouse`,
-  `secret scan`, `resource budget`, and `promotion`;
+- the six CI checks above must pass, named exactly as their jobs report:
+  `tools (lint, types, tests)`, `services (lint, types, tests)`,
+  `warehouse (lint, parse)`, `secret scan`, `resource budget`, and
+  `promotion (prod pins only staging's digests)` — a renamed job must be
+  renamed in the ruleset too, or every pull request waits for a check that
+  never reports;
 - `main` cannot be force-pushed or deleted.
 
 Inspect what applies with
