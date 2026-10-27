@@ -181,3 +181,14 @@ without rewriting it.
   point (its URL matches no Application and its key is revoked) and is
   removed by hand. This also corrects the *Risks* paragraph above: there was
   no window in which Argo CD reconciled nothing.
+- **2026-10-27 — decision 5 is not carried out: the node keeps its public
+  IPv4.** The operator chose to skip step 9. The old address never became
+  public: it appears only in the text of two pull requests in the archive,
+  which is private and archived. Knowing it opens nothing either, since the
+  node accepts no inbound connection on its public address (the closed-port
+  probe in the runbook), and every public address is scanned regardless.
+  Against that, the swap powers the node off, missing a pipeline run, and an
+  unassign-before-assign mistake would leave the node with no IPv4 at all.
+  The benefit did not justify the risk. Revisit if the archive's
+  pull-request text is ever exposed, or if the firewall gains an inbound
+  rule.
