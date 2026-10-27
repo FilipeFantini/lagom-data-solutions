@@ -123,3 +123,16 @@ Reversal: delete the `heartbeat` container and the sealed files, move
 `transform` back to a regular container, and delete the checks. Dagster's
 alerting (M3) is expected to supersede this decision; the trigger to revisit
 is M3 starting.
+
+## Notes after acceptance
+
+The text above is kept as accepted. These notes record what changed since,
+without rewriting it.
+
+- **2026-10-27 — the free plan's limits, checked on Healthchecks.io's own
+  [pricing page](https://healthchecks.io/pricing/).** The Hobbyist plan
+  monitors 20 jobs and keeps 100 log entries per job; it states no limit on
+  pings. The limit is on checks, not on how often they are pinged: two checks
+  are used, and the 100 entries cover about 50 hours of runs at one ping every
+  30 minutes. Staging's first ping succeeded the same day (on-demand run,
+  `heartbeat sent: HTTP 200`).

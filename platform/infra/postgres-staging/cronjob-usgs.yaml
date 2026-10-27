@@ -247,7 +247,7 @@ spec:
           volumes:
             # The root filesystems are read-only, so each process needs a
             # writable place. An emptyDir lives as long as the Pod and is
-            # shared by both containers, so dbt starts over dlt's leftovers
+            # shared by ingest and transform, so dbt starts over dlt's leftovers
             # without needing them. 64Mi: the first run reads 30 days of
             # events (~6 500, a few MB of dlt files) and dbt writes a few MB
             # of SQL and logs; this is more than ten times that. Past the limit
@@ -259,9 +259,9 @@ spec:
 
 # Fit against staging's quota and LimitRange (quota.yaml). The quota admits a
 # Pod by the same rule as the scheduler, the larger of init and regular:
-#   Pod request (memory)  max(init 256Mi, regular 256Mi)       = 256Mi
+#   Pod request (memory)  max(init 256Mi, regular 32Mi)        = 256Mi
 #   requests.memory       Postgres 300Mi + 256Mi = 556Mi        <= 768Mi
-#   Pod limit (memory)    max(512Mi, 512Mi)                     = 512Mi
+#   Pod limit (memory)    max(init 512Mi, regular 64Mi)         = 512Mi
 #   limits.memory         Postgres 512Mi + 512Mi = 1024Mi       <= 1536Mi
 #   requests.cpu          Postgres 50m + 50m = 100m             <= 500m
 #   pods                  Postgres + this Pod, plus finished Pods kept by
@@ -269,10 +269,10 @@ spec:
 #                         against requests, and do against `pods` only while
 #                         they exist: at most 1 + 3 Jobs of up to 2 Pods)
 #                                                               <= 10
-#   LimitRange            each container's 512Mi limit is at, not over, the
-#                         512Mi `max`
+#   LimitRange            each init container's 512Mi limit is at, not over,
+#                         the 512Mi `max`; heartbeat's 64Mi is under it
 # A second Pod made by hand with `kubectl create job --from` while a scheduled
 # run is active (Forbid covers only the schedule) would need 300 + 256 + 256 =
 # 812Mi of requests and be refused by the quota: the room is for one run at a
 # time, by design. GOMEMLIMIT does not apply: it is a Go runtime setting and
-# both containers run Python.
+# every container runs Python.

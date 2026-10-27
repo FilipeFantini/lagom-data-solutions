@@ -182,7 +182,8 @@ passes.
 - [ ] **Pipeline heartbeat** — each successful run pings Healthchecks.io, a
       missing ping e-mails the operator
       ([ADR-0018](adr/0018-pipeline-heartbeat.md)); after a 90-minute failure
-      on 2026-10-27 that alerted nobody. Staging first, then prod
+      on 2026-10-27 that alerted nobody. Staging verified 2026-10-27 (on-demand
+      run: ingest, transform, `heartbeat sent: HTTP 200`); prod follows
 - [ ] **Postgres backup** to a destination off the node, on a schedule — the
       destination is chosen then; R2's free tier is the candidate. The
       mechanism too, measured on the node: Barman Cloud Plugin (needs
