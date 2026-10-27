@@ -1,0 +1,13 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: pipeline-heartbeat
+  namespace: prod
+spec:
+  encryptedData:
+    url: AgAjsUsBl7CL3NSuddWr877cl06/nSKoEaXBFhXNmpSjdGSK/RCDMrVDm7j37wfhNSWx9meOJckyJHyqv5n3T3PMXfWAZ2odRcD5EpIfX6Q/knvVojLFXvLJp2Ca9ohpj65a7Sd0E+nsdudrgL8P4mWeHBKlVJSS9IxR0wO5y4jH18mvJOFPr4RqDJ86lYeVbw4WxZSZuiBwy7N9jGGLkdrgBm8tRMcYrFdMJGvHjwv/T3iITenJseNvhphNkL3SVN4dV1NjgPGBcolP+p5RePV5ex7FU2pJ4KAKhbHRegug05ToHY4UsjJkRAq7u2UfXkVhvFxO5C/4UZjNA/sb8gMb1SPuyAp8HLiuWCoeqcI24HCYWMp3cy+UmM8+73Bt5OLOYZPEU4U0dHvov1Tq4P3+fiYhZpult56eLS8DZL7yFFg4jPXaRth/+ywlNLWROtykW+4FWPhknqf73aeSAaAdaRTeo0ZvePmjR61UnwGSxtTCbjXYnojK0NMIiu+zKdOd3d4Lf3rFN7rVBq84e8dTRVXxvMymmF1uTl+8Eixbci1nPKntB7pvjQI0Z/xs/fDkGZi/4Cl9e7fu5YKpNnuU4l3ZtKW2HVV8tAQg5uPRMTu8qwghi2y3wZrvCJPSsYGPe0DjQSuJyXHXYBbMrXoH8lIAeaLtT99YRUPkTvazjO+IhoG8ZEHw8sZK2RdOh7rXAWDQYPLGUtkJF/ZUEUp/W7ZcBvjkpDd2qdAyji5607HuZTpbyW8KHNDbF0Wr1sA5GrTCS49Cug==
+  template:
+    metadata:
+      name: pipeline-heartbeat
+      namespace: prod

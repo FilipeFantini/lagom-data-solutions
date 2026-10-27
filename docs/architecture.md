@@ -313,10 +313,9 @@ the base, run as UID 10001 on a read-only root filesystem, and write only under
 52 s. Both packages are private: an anonymous manifest request to ghcr.io
 returns HTTP 403 (checked 2026-10-17; the same request against a public image
 succeeds). Staging's and prod's CronJob `usgs-pipeline` runs them
-every 30 minutes, dbt starting only if the load exited 0. In staging both are
-init containers and a `heartbeat` container pings Healthchecks.io only if both
-exited 0 ([ADR-0018](adr/0018-pipeline-heartbeat.md)); prod keeps dlt as the
-init container and dbt as the main container until its own change. It pulls from GHCR with
+every 30 minutes, dbt starting only if the load exited 0: both are init
+containers, and a `heartbeat` container pings Healthchecks.io only if both
+exited 0 ([ADR-0018](adr/0018-pipeline-heartbeat.md)). It pulls from GHCR with
 the sealed `ghcr-pull` Secret, which the operator adds to the same directory.
 
 Staging is real rather than nominal because of four enforced conditions: its own
