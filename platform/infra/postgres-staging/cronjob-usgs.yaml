@@ -136,10 +136,11 @@ spec:
 
           containers:
             - name: transform
-              # lagom-warehouse, same commit. The entrypoint is `dbt build`
-              # over bronze, silver, and gold with their tests; a failing test
-              # fails the container, so the Job fails.
-              image: ghcr.io/filipefantini/lagom-warehouse:2c91f08f9be5ce68e8a7dd0049ae29d0574837cc@sha256:90ef4307d0d01645e79ba3b4c1bf396bcf0123919d8b8afcd8e14c5663571915
+              # lagom-warehouse. The entrypoint is `dbt build` over bronze,
+              # silver, and gold with their tests; a failing test fails the
+              # container, so the Job fails. Each image is pinned to the commit
+              # that last changed it, so the two tags can differ.
+              image: ghcr.io/filipefantini/lagom-warehouse:c09a00ba4aec940a316be1766a5c0ea3ff05ef29@sha256:3072401e2b8c12ebb4753a3ac666bd09444008e06120b7e9551152ef7896a507
               env:
                 # profiles.yml reads these and has no default for any of them.
                 # `host` is the read-write Service, postgres-rw.
