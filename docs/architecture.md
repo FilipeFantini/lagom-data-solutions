@@ -552,8 +552,9 @@ when the additions arrive. The vertical fallback is in
 - **Scaling.** Vertical is easy — Hetzner resizes, one reboot. Horizontal needs
   care with the datastore (SQLite to etcd, three nodes) and with storage
   (local-path pins the volume to a node; either node affinity or Longhorn).
-- **Guardrail changes are protected by convention only** while `main` has no
-  branch protection — accepted debt, see
+- **Changes to the gates themselves are protected by convention only.**
+  Branch protection (since 2026-10-27) requires the checks to pass, but a pull
+  request runs the workflow as it edits it — see
   [CONTRIBUTING](../CONTRIBUTING.md#branch-protection).
 
 ## 13. Runbook
