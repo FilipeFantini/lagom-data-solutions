@@ -167,8 +167,9 @@ without rewriting it.
 
 - **2026-10-27 — the cutover needed no manual step, and Argo CD never
   paused.** Step 3 predicted a comparison error until step 4. It did not
-  happen: GitHub lets any SSH key it authenticates, including a deploy key
-  registered on another repository, read a public repository. So the old SSH
+  happen. As observed here, GitHub lets an SSH key it authenticates, including
+  a deploy key registered on another repository, read a public repository —
+  inferred from the behaviour, not from GitHub's documentation. So the old SSH
   URL kept working against the new repository; `root`, which syncs itself
   automatically, applied its own manifest from the snapshot, and the six
   child Applications were re-rendered with the HTTPS URL. Before any command
@@ -178,4 +179,5 @@ without rewriting it.
   succeeded with no condition reported: Argo CD reads the repository with no
   credential at all. The repository Secret in `argocd` is inert from that
   point (its URL matches no Application and its key is revoked) and is
-  removed by hand.
+  removed by hand. This also corrects the *Risks* paragraph above: there was
+  no window in which Argo CD reconciled nothing.
