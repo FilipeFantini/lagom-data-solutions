@@ -1,4 +1,4 @@
-# Helm values for Argo CD on lagom-shared-01.
+# Helm values for Argo CD on the Lagom node.
 # Chart: argo/argo-cd 10.10.3 (Argo CD v3.5.5). Only what differs from the
 # chart defaults is set here; everything else is upstream behaviour.
 #

@@ -81,3 +81,7 @@ without rewriting it.
   the fallback above. The move to it is done by hand from the runbook and is
   the disaster-recovery drill ([ADR-0022](0022-platform-as-a-portfolio-of-architectures.md));
   Terraform waits for the next node.
+- **2026-10-28 — moved.** Prod and staging run on `lagom-shared-02` since
+  12:14 UTC, rebuilt from Git by the runbook in 20 min 31 s; measurements and
+  gaps are in the runbook's *Disaster recovery*. The 2.2 GB ceiling still
+  holds until the CAX21's overhead is measured.

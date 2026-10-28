@@ -9,5 +9,5 @@ data:
   index.html: |
     <!doctype html>
     <title>lagom</title>
-    <p>Hello from lagom-shared-01, deployed by Argo CD.</p>
+    <p>Hello from the Lagom node, deployed by Argo CD.</p>
     <p>This line arrived by a merged commit. Nobody ran a command.</p>

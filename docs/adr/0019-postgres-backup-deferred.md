@@ -111,3 +111,19 @@ without rewriting it.
   operator relying on the database itself. The streaming source moved from M5
   to M6; trigger 1 is otherwise unchanged, and Dagster's metastore (M3) is still
   the expected first.
+- **2026-10-28 — the re-load, run** in the move to `lagom-shared-02`
+  ([runbook](../architecture.md#disaster-recovery)). It worked as written
+  for the last 30 days, and found what "untested" above hid: **the USGS API
+  filters by origin time, not only by `updatedafter`.** With no `starttime`
+  it returns only events whose origin is in the last 30 days (`count` on
+  2026-10-28: 9,474 events updated since 2026-10-01 without `starttime`,
+  12,318 with `starttime=2026-08-01`). So a re-load cannot rebuild events
+  older than 30 days, however far back `initial_lookback_days` or
+  `--since` reaches; the old node held 3,952 such events in prod that the
+  new one does not. The same filter affects the pipeline in normal running:
+  revisions of events older than 30 days are never loaded (117 such events
+  were revised between 2026-10-27 and 2026-10-28, by the API's own count), so silver keeps their
+  previous revision. **The operator accepted both on 2026-10-28**: events
+  and revisions older than 30 days are out of scope, so "recovery is a
+  re-load" means the last 30 days of events
+  ([`services/usgs/README.md`](../../services/usgs/README.md)).
