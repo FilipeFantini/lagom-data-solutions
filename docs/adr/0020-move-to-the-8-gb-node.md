@@ -70,3 +70,14 @@ Reversal: resize back to a CAX11, if the declared requests fit the 2.2 GB
 ceiling again. A disk is never shrunk, so a resize that also grows the disk
 cannot be reversed this way. Resize CPU and RAM only, which Hetzner offers as
 an option, to keep the way back open.
+
+## Notes after acceptance
+
+The text above is kept as accepted. These notes record what changed since,
+without rewriting it.
+
+- **2026-10-28 — the node, obtained.** The resize stayed unavailable; the
+  operator obtained an 8 GB server in another location, `lagom-shared-02`,
+  the fallback above. The move to it is done by hand from the runbook and is
+  the disaster-recovery drill ([ADR-0022](0022-platform-as-a-portfolio-of-architectures.md));
+  Terraform waits for the next node.

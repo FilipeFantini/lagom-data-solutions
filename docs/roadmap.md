@@ -6,6 +6,11 @@ deliberately absent.
 **Execution rule:** walking skeleton before any data source. Make the whole loop
 work with the minimum, then thicken each piece.
 
+**The platform is a portfolio of data architectures** ([ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md)): each
+*showcase* is one architecture end to end on the shared backbone, published as
+static pages and dashboards on getlagom.app. A component enters because a
+showcase needs it.
+
 **Principle 7 — defer with a trigger.** The full design in
 [`architecture.md`](architecture.md) is the destination, not the starting point.
 The core of M1–M3 is eight pieces: k3s, Argo CD, Tailscale, Sealed Secrets, dlt,
@@ -16,20 +21,22 @@ dbt, Postgres, Dagster.
 | Piece | Enters when |
 |---|---|
 | `staging` namespace | M2 — once there is something to promote |
-| Postgres backup | Postgres holds state no source can rebuild (Dagster's metastore in M3, a non-replayable source in M5), or the first external reader (M4) — [ADR-0019](adr/0019-postgres-backup-deferred.md); accepted as debt, [architecture.md §12](architecture.md#12-accepted-risks) |
-| Lakehouse: object storage, open table format, DuckDB | a measured limit of Postgres, a file-shaped source, or a consumer that needs files — [ADR-0008](adr/0008-postgres-for-all-layers.md) |
+| Postgres backup | Postgres holds state no source can rebuild (Dagster's metastore in M3, a non-replayable source in M6), or someone other than the operator relies on the database itself — the site does not: it reads snapshots in R2 — [ADR-0019](adr/0019-postgres-backup-deferred.md); accepted as debt, [architecture.md §12](architecture.md#12-accepted-risks) |
+| Object storage (Cloudflare R2) | M4, as the bridge from the cluster to the site — [ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md) |
+| Open table format, DuckDB | the medium-data showcase (M5). Postgres stays the store of the small-data showcase — [ADR-0008](adr/0008-postgres-for-all-layers.md) |
 | Second VPS (real environment isolation) | a real client |
-| Terraform for resources outside the cluster (Hetzner server and firewall, Tailscale ACL, Cloudflare DNS and Access) | the M2 disaster-recovery drill, which rebuilds the node, or a second VPS — whichever comes first. An ADR at entry settles the state backend, which resources Terraform owns, and the hand-off to Argo CD |
-| Evidence | M4 — first thing worth showing |
-| Cloudflare Access | first external reader (M4) |
+| Terraform for resources outside the cluster (Hetzner server and firewall, Tailscale ACL, Cloudflare DNS, R2 and Pages) | the next node built or rebuilt after the move to the 8 GB node, which is done by hand on purpose to test the runbook ([ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md)). An ADR at entry settles the state backend, which resources Terraform owns, and the hand-off to Argo CD |
+| Evidence | M4 — the dashboard gallery on getlagom.app ([ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md)) |
+| Cloudflare Access (login) | the first content that must not be public. The site and its showcases are public data |
 | NATS | second consumer of the same stream, or a replay requirement |
-| Streamlit | the globe exists (M6) |
+| Streamlit | an interactive app a static page cannot serve |
 | Grafana | something to monitor that Dagster alerts do not cover |
 | PgBouncer (CloudNativePG `Pooler`) | first external BI consumer |
 | Row Level Security | second consumer with segregated data |
 | PostgREST | first API requirement |
-| Metabase (+ 8 GB VPS) | a client needs ad-hoc exploration |
-| 8 GB node (CAX21) | **decided 2026-10-27** for M3 ([ADR-0020](adr/0020-move-to-the-8-gb-node.md)); waiting on Hetzner capacity for the resize |
+| Metabase, Superset or Lightdash | a client needs ad-hoc, self-service exploration — behind login |
+| 8 GB node | **decided 2026-10-27** for M3 ([ADR-0020](adr/0020-move-to-the-8-gb-node.md)); obtained 2026-10-28 as a new node in another location, `lagom-shared-02` — the migration is M3's first item |
+| Heavier market stacks (Airflow, Spark or Trino with Iceberg, Superset) | after M6, each as a showcase of its own on infrastructure sized for it, with its own ADR ([ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md)) |
 | In-cluster policy engine (Kyverno, Gatekeeper) | a second writer to the cluster besides Argo CD — [ADR-0013](adr/0013-agent-driven-development-guardrails.md) |
 | Automated staging digest bump (bot commit after a build) | manual staging bumps become routine, and the bot meets [ADR-0013](adr/0013-agent-driven-development-guardrails.md) rule 3 for infrastructure manifests — [ADR-0015](adr/0015-images-on-ghcr.md) |
 | Run jobs without an own image (official `uv` image, clone at run time) | GitHub announces billing for Container registry storage or bandwidth — [ADR-0015](adr/0015-images-on-ghcr.md) |
@@ -192,11 +199,8 @@ passes.
       on 2026-10-27 that alerted nobody. Verified 2026-10-27: staging on
       demand (`heartbeat sent: HTTP 200`), prod's 12:00 run (`ingest`,
       `transform` and `heartbeat` all exit 0, in 18 s)
-- [ ] Runbook: disaster recovery and secret rotation — recovery is a rebuild
-      from Git and a re-load of bronze from USGS, run once in a drill with
-      measured RTO
-      ([ADR-0019](adr/0019-postgres-backup-deferred.md)); backup and restore
-      join it when the backup exists
+- [ ] Runbook: disaster recovery and secret rotation — moved to M3: the
+      move to the 8 GB node is the drill ([ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md))
 
 The Postgres backup left M2 on 2026-10-27
 ([ADR-0019](adr/0019-postgres-backup-deferred.md)): everything in Postgres today
@@ -205,42 +209,63 @@ trigger in the table above — at the latest with Dagster's metastore in M3. The
 mechanism and destination are still chosen then, measured on the node
 ([ADR-0012](adr/0012-cloudnative-pg.md)).
 
-## M3 — Dagster takes over
+## M3 — The 8 GB node and Dagster
 
-Replace the CronJob with assets, lineage, and declarative retries. The native
-dlt integration makes each pipeline an asset without glue code.
+The node that M3 needs, and the orchestration every showcase uses.
 
-- [ ] Dagster with Postgres metastore — its run history exists only on the
-      node, so the Postgres backup comes first
-      ([ADR-0019](adr/0019-postgres-backup-deferred.md))
+- [ ] **Move to `lagom-shared-02`** (8 GB) by hand, from the runbook and Git
+      only — this is the **disaster-recovery drill**: time each step, fix every
+      gap the runbook shows, record the measured RTO. Delete `lagom-shared-01`
+      once prod runs on the new node ([ADR-0020](adr/0020-move-to-the-8-gb-node.md),
+      [ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md))
+- [ ] Runbook: disaster recovery and secret rotation, written from the drill
+- [ ] Measure the new node's overhead and set its CI ceiling, as ADR-0016 did
+- [ ] Postgres backup — before Dagster's metastore, whose run history exists
+      only on the node ([ADR-0019](adr/0019-postgres-backup-deferred.md))
+- [ ] Dagster with Postgres metastore
 - [ ] dlt and dbt assets
 - [ ] Native failure alerting
 - [ ] `dbt test` in CI
 - [ ] Freshness threshold declared and asserted
-- [ ] Lakehouse trigger measures visible: `dbt run` duration and Postgres data
-      size — [ADR-0008](adr/0008-postgres-for-all-layers.md)
 - [ ] Runbook: on-failure section
 
-End of M3 = platform working end to end with eight pieces. **Natural checkpoint
-to stop and reassess before adding anything.**
+## M4 — getlagom.app
 
-## M4 — Someone can see it
+The platform's public face: a static site and a gallery of dashboards, with
+the first showcase in it ([ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md)). Public data, no login.
 
-- [ ] Evidence building in GitHub Actions
-- [ ] Cloudflare Tunnel + Access with per-email policy
+- [ ] Cloudflare R2 bucket; a Dagster asset exports the showcase's published
+      tables to it as Parquet
+- [ ] Astro site on Cloudflare Pages at getlagom.app — design inspired by
+      PostHog's; each page states the problem, then the solution
+- [ ] Evidence dashboards built in GitHub Actions from the Parquet in R2, shown
+      as a gallery of cards on the site
+- [ ] **Showcase: small data** — the USGS pipeline on Postgres, with its real
+      numbers (rows, run time, memory)
 
 First thing worth showing.
 
-## M5 — Streaming
+## M5 — Medium data on a small node
 
-Second source, now continuous events. Candidates in
-[`use-case-globe.md`](use-case-globe.md).
+The showcase the platform exists for: more data than the node has memory,
+processed with frugal tools.
+
+- [ ] DuckDB over Parquet (or Iceberg — the catalog is chosen at entry) on R2
+- [ ] A public dataset larger than the node's memory
+- [ ] Benchmarks published: rows, gigabytes, time, peak memory — measured,
+      with the method on the page
+- [ ] Lakehouse trigger measures visible: `dbt run` duration and Postgres data
+      size — [ADR-0008](adr/0008-postgres-for-all-layers.md)
+
+## M6 — Streaming
+
+Continuous events. Candidates in [`use-case-globe.md`](use-case-globe.md).
 
 This is where the platform proves it grows by composition: **if adding a source
 is only new configuration, the design worked.**
 
-- [ ] Redpanda Connect with the second source — if the source does not keep
-      its history, the Postgres backup comes first
+- [ ] Redpanda Connect with the source — if the source does not keep its
+      history, the Postgres backup comes first
       ([ADR-0019](adr/0019-postgres-backup-deferred.md))
 - [ ] Collector running on the Pi as an agent node. k3s currently advertises
       the node's public IP and runs flannel on the public interface; a node
@@ -252,12 +277,6 @@ is only new configuration, the design worked.**
 > Connect writes straight to the destination and NATS adds nothing functionally.
 > Worth doing as a conscious learning exercise, not as a technical necessity.
 > Knowing the difference is what prevents doing it to a real client.
-
-## M6 — The globe
-
-- [ ] Streamlit with pydeck
-- [ ] Two or three layers over the same geographic model
-- [ ] Behind Access
 
 ## M7 — Two developers
 

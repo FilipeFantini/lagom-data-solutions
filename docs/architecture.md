@@ -72,7 +72,8 @@ trigger; the prices checked for that moment are in ADR-0008.
 **Outside the cluster, principle 3 does not hold yet.** The server, its
 firewall, the Tailscale ACL, and the Healthchecks.io checks are created by
 hand, following the runbook (§13); the domain's zone at Cloudflare was set up by
-hand in its console, and Cloudflare Access does not exist yet (M4). Argo CD
+hand in its console, and Cloudflare Access does not exist yet (it enters by
+trigger, with the first content that must not be public). Argo CD
 reconciles only what runs inside the cluster. Terraform takes over these
 resources by trigger — see [`roadmap.md`](roadmap.md#trigger-table).
 
@@ -257,29 +258,34 @@ CloudNativePG `Pooler` object, not a separate install.
 
 ## 9. Visualization
 
-Three tools would be excess if introduced together. They enter staged:
+The public face is static: nothing on the node serves it
+([ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md)).
 
-| Tool | Role | RAM | Enters when |
+| Tool | Role | RAM on the node | Enters when |
 |---|---|---|---|
-| **Evidence** | curated reports, SQL + Markdown, built in CI | 0 (static) | M4 — first |
-| **Streamlit + pydeck** | the globe and interactive apps | 200–250 MB | M6, once the globe exists |
-| **Grafana** | time series, pipeline health, alerting | 150 MB | when there is something to monitor that Dagster alerts do not cover |
+| **Astro** | the site at getlagom.app: pages, copy, the gallery of showcases | 0 (static, Cloudflare Pages) | M4 |
+| **Evidence** | the dashboards: SQL + Markdown, charts built on Apache ECharts, built in CI from Parquet in R2 | 0 (static) | M4 |
+| **Streamlit** | interactive apps | 200–250 MB | an app a static page cannot serve |
+| **Grafana** | time series, pipeline health, alerting | 150 MB | something to monitor that Dagster alerts do not cover |
+
+How a dashboard is published: a Dagster asset writes the showcase's published
+tables to Cloudflare R2 as Parquet, an outbound connection; GitHub Actions
+builds Evidence from there and deploys to Cloudflare Pages. CI never reaches
+Postgres, and a visitor never reaches the cluster.
 
 Evidence is MIT-licensed with no per-seat cost. It is built for reviewed
-reports, not ad-hoc exploration.
+reports, not ad-hoc exploration. Its npm releases paused between February and
+October 2026; the exit is the Observable Framework, which keeps the SQL and the
+Parquet ([ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md)).
 
 Two cautions: in static build mode the data is **embedded in the site** as
-Parquet, and the open-source version has **no row-level security**, so
-segmentation per client means one build per client with filtered SQL — not a
-permission inside the app. It also has **no authentication layer**: it must sit
-behind Cloudflare Access or Tailscale.
+Parquet, and Evidence has **no authentication and no row-level security**. A
+public showcase therefore publishes only public data. Private data means one
+build per audience behind Cloudflare Access — not a permission inside the app.
 
-Streamlit re-executes its script on every interaction, so it requires
-disciplined `st.cache_data`. It also has no native auth.
-
-Metabase is the better self-service BI tool for an SMB but costs 600 MB–1 GB on
-the JVM. Documented as a conscious upgrade: raise the VPS to 8 GB and add it
-when a client needs ad-hoc exploration.
+Metabase, Superset and Lightdash are the self-service BI options, at 600 MB to
+1 GB or more each. They enter when a client needs ad-hoc exploration, behind
+login.
 
 ## 9a. Environments
 
@@ -342,6 +348,7 @@ one of the three.
 
 | Channel | Who | What it grants |
 |---|---|---|
+| **Public site** (getlagom.app) | anyone | static pages and dashboards of public data; no path to the cluster |
 | **Tailscale** | operators and admin | raw Postgres and the whole cluster |
 | **Cloudflare Access** | partners, cloud BI | report reading via browser, no install |
 | **Signed file URL** | partners, external pipelines | bytes with an expiry, access to nothing |
@@ -371,7 +378,8 @@ Tailscale client is already open source.
 
 ### Cloudflare Tunnel + Access
 
-Deferred with a trigger: enters with the first external reader (M4). A light
+Deferred with a trigger: enters with the first content that must not be
+public ([ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md)). A light
 agent (`cloudflared`, ~30 MB) opens an **outbound-only** connection. Access puts
 identity in front with per-application policy. The partner gets a link, logs in,
 and sees the dashboard — no install, with WAF and rate limiting included.

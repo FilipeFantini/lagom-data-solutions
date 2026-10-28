@@ -98,3 +98,16 @@ the backup by its trigger, and the M3 and M5 items that would fire it name it.
 
 Reversal: build the backup earlier, with the mechanism chosen as ADR-0012
 describes. Nothing has to be undone.
+
+## Notes after acceptance
+
+The text above is kept as accepted. These notes record what changed since,
+without rewriting it.
+
+- **2026-10-28 — the external-reader trigger, after [ADR-0022](0022-platform-as-a-portfolio-of-architectures.md).**
+  The site at getlagom.app is public and reads snapshots the pipeline exports
+  to R2, not Postgres. Its readers do not depend on the database being up, so
+  they do not fire trigger 2. Trigger 2 now means someone other than the
+  operator relying on the database itself. The streaming source moved from M5
+  to M6; trigger 1 is otherwise unchanged, and Dagster's metastore (M3) is still
+  the expected first.
