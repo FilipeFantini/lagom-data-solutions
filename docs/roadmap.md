@@ -32,7 +32,7 @@ dbt, Postgres, Dagster.
 | Cloudflare Access (login) | the first content that must not be public. The site and its showcases are public data |
 | NATS | second consumer of the same stream, or a replay requirement |
 | Streamlit | an interactive app a static page cannot serve |
-| Grafana | something to monitor that Dagster alerts do not cover |
+| Infrastructure observability (metrics and logs), shown on getlagom.app | the USGS showcase is live on getlagom.app (M4): the platform delivers data first, then shows how it runs. Candidate stack, chosen for resident memory and confirmed by its own ADR when it enters: VictoriaMetrics single-node (scrapes and stores, PromQL-compatible), node-exporter and kube-state-metrics as sources, VictoriaLogs for logs; Grafana only for the operator, over the tailnet. The site gets static snapshots exported after each run, like every showcase, never a live dashboard reaching the cluster ([ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md)). Expected, not yet measured: lower resident memory than Prometheus and a simpler log store than Loki; the ADR measures the candidate before accepting it |
 | PgBouncer (CloudNativePG `Pooler`) | first external BI consumer |
 | Row Level Security | second consumer with segregated data |
 | PostgREST | first API requirement |
@@ -251,6 +251,11 @@ the first showcase in it ([ADR-0022](adr/0022-platform-as-a-portfolio-of-archite
       site ([ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed)
 - [ ] **Showcase: the SME stack on USGS** — the pipeline, with its real numbers
       (rows, run time, memory)
+- [ ] **Showcase: the platform itself**, after the USGS showcase is live —
+      infrastructure observability (node and pod memory against the budget,
+      job durations, logs), with the stack in the
+      [trigger table](#trigger-table) and its own ADR; the site shows exported
+      snapshots, not a live dashboard
 
 First thing worth showing.
 
