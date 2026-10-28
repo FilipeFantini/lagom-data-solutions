@@ -19,6 +19,11 @@ postgresql:
   # Pod to Service: TLS required, as every in-cluster client here.
   postgresqlParams:
     sslmode: require
+  # psycopg2, the driver dagster-postgres declares and Dagster's SQL is written
+  # for. SQLAlchemy 2.1 would pick psycopg 3, whose server-side parameters
+  # ("\$1") Dagster's statements reject: the first staging run failed with
+  # `syntax error at or near "$1"` (2026-10-28).
+  postgresqlScheme: postgresql+psycopg2
   service:
     port: 5432
 
