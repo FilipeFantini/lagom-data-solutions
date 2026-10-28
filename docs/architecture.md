@@ -60,12 +60,15 @@ through it.
 
 | Resource | Role |
 |---|---|
-| Hetzner CAX11 (2 ARM vCPU, 4 GB), `lagom-shared-01` in `nbg1` | control plane and main node; hosts the prod and staging namespaces |
+| Hetzner CAX21 (4 ARM vCPU, 8 GB), `lagom-shared-02` in `fsn1` | control plane and main node; hosts the prod and staging namespaces since 2026-10-28 ([ADR-0020](adr/0020-move-to-the-8-gb-node.md)) |
+| Hetzner CAX11 (2 ARM vCPU, 4 GB), `lagom-shared-01` in `nbg1` | the previous node, retired by the checklist in the runbook (*Disaster recovery*) |
 | Raspberry Pi 3B (1 GB) | edge agent node, streaming collector |
 | `getlagom.app` domain, registered and served by Cloudflare | public entry via Cloudflare (M4) |
 
-Cost: EUR 7.37/month for the node, as shown in the Hetzner Console on
-2026-10-12 ([ADR-0002](adr/0002-single-node-k3s-hetzner.md)). Object storage (R2) enters with the SME-stack
+Cost: the CAX11 was EUR 7.37/month, as shown in the Hetzner Console on
+2026-10-12 ([ADR-0002](adr/0002-single-node-k3s-hetzner.md)); the CAX21 is
+roughly double ([ADR-0020](adr/0020-move-to-the-8-gb-node.md)), its exact
+price the one the Console shows. Object storage (R2) enters with the SME-stack
 spike in M3, on its free tier ([ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed); the prices checked earlier are in ADR-0008.
 
 **Outside the cluster, principle 3 does not hold yet.** The server, its
@@ -454,7 +457,10 @@ RLS.
 ## 11. Resource budget
 
 The node shows **3.8 GB** of RAM to the OS (3817 MB; the rest of the nominal
-4 GB is reserved by firmware and kernel). Two budgets share it, kept apart
+4 GB is reserved by firmware and kernel). These figures were measured on
+`lagom-shared-01`, the 4 GB node; the ceiling below still holds on
+`lagom-shared-02` (7741 MB visible) until its own overhead is measured, an
+M3 item in the [roadmap](roadmap.md). Two budgets share it, kept apart
 because they are enforced differently.
 
 ### Node overhead — outside Kubernetes, enforced by nothing
@@ -606,7 +612,9 @@ in here ([ADR-0017](adr/0017-public-repository-from-a-snapshot.md)):
 1Password), `<operator-tailscale-login>` (the identity the operator signs in to
 Tailscale with), `<tailnet>` and `<node-tailnet-ip>` (both printed by
 `tailscale status`), and `<ip>` / `<public-ip>` / `<public-ipv4>` (the Hetzner
-Console).
+Console). `<node-name>` is not a secret but changes with each node: it is
+`lagom-shared-02` since 2026-10-28, and the next node takes the next index;
+`<old-node-name>` is the one being replaced.
 
 ### Provision the node (M0)
 
@@ -683,7 +691,7 @@ curl -fsSL https://pkgs.tailscale.com/stable/debian/trixie.noarmor.gpg \
 curl -fsSL https://pkgs.tailscale.com/stable/debian/trixie.tailscale-keyring.list \
   | sudo tee /etc/apt/sources.list.d/tailscale.list
 sudo apt-get update && sudo apt-get install -y tailscale
-sudo tailscale up --hostname=lagom-shared-01
+sudo tailscale up --hostname=<node-name>
 ```
 
 `tailscale up` prints a login URL. The operator opens it, signs in, and approves
@@ -691,7 +699,7 @@ the machine. **No auth key is involved**, so no credential passes through a
 script or a chat. The trade-off is that the step is interactive — fine for one
 node; an unattended rebuild would use a single-use, short-lived auth key.
 
-Then, in the Tailscale admin console: *Machines → lagom-shared-01 → Disable key
+Then, in the Tailscale admin console: *Machines →* `<node-name>` *→ Disable key
 expiry*. A device must re-authenticate every 180 days by default; on a server
 that silently drops it from the tailnet, and the cluster's API with it.
 
@@ -703,29 +711,34 @@ and sign in to the same tailnet.
 
 ```bash
 tailscale status                   # both machines listed
-tailscale ping lagom-shared-01     # "via <public-ip>:41641" is direct; "via DERP(...)" is relayed
-ssh <admin-user>@lagom-shared-01 hostname
+tailscale ping <node-name>     # "via <public-ip>:41641" is direct; "via DERP(...)" is relayed
+ssh <admin-user>@<node-name> hostname
+tailscale status --json | jq '.Peer[] | select(.HostName=="<node-name>") | {Tags, KeyExpiry}'
 ```
 
 The first pings may go through a DERP relay until NAT traversal finds a direct
 path; on 2026-10-12 it became direct within seconds. A path that stays on DERP
 works, only slower.
 
-The node is `lagom-shared-01.<tailnet>.ts.net`, `<node-tailnet-ip>`; `tailscale
+The last command must print `"tag:lagom-node"` (after the ACL step below) and
+`"KeyExpiry": null`, which is what *Disable key expiry* sets.
+
+The node is `<node-name>.<tailnet>.ts.net`, `<node-tailnet-ip>`; `tailscale
 status` on either machine prints both.
 
 ### Install k3s (M1)
 
-Configuration first, as a file, so the install is declarative and re-runnable;
-then the official installer with a pinned version:
+Configuration first, as files, so the install is declarative and re-runnable;
+then the official installer with a pinned version. On the node:
 
 ```bash
+IP=$(tailscale ip -4)
 sudo install -d -m 0755 /etc/rancher/k3s
-sudo tee /etc/rancher/k3s/config.yaml >/dev/null <<'EOF'
-node-name: lagom-shared-01
+sudo tee /etc/rancher/k3s/config.yaml >/dev/null <<EOF
+node-name: <node-name>
 tls-san:
-  - lagom-shared-01.<tailnet>.ts.net
-  - <node-tailnet-ip>
+  - <node-name>.<tailnet>.ts.net
+  - $IP
 secrets-encryption: true
 disable:
   - traefik
@@ -734,9 +747,15 @@ disable:
   - metrics-server
 EOF
 sudo chmod 0600 /etc/rancher/k3s/config.yaml
+sudo install -d -m 0755 /etc/systemd/system/k3s.service.d
+printf '%s\n' '[Service]' 'Environment=GOMEMLIMIT=900MiB' \
+  | sudo tee /etc/systemd/system/k3s.service.d/memory.conf
 curl -sfL https://get.k3s.io -o /tmp/k3s-install.sh
 sudo INSTALL_K3S_VERSION="v1.36.5+k3s1" sh /tmp/k3s-install.sh
 ```
+
+The heredoc is unquoted so the shell fills in `$IP`, the node's tailnet
+address; nothing else in it starts with `$`.
 
 **Why it works.** The installer creates the `k3s` systemd unit; on every start
 k3s reads `config.yaml`, where each key is the long form of a command-line flag.
@@ -755,18 +774,19 @@ k3s reads `config.yaml`, where each key is the long form of a command-line flag.
 - The version is the `stable` channel on 2026-10-12. Upgrading is a deliberate
   change, preceded by a staging rebuild ([ADR-0007](adr/0007-three-environments.md)).
 
-**Memory limit for the Go runtime.** Without it, `k3s-server` grew to 1.2 GB
-holding memory it did not use ([ADR-0011](adr/0011-memory-viability-on-4gb.md)).
-A systemd drop-in survives reinstalls of k3s, unlike the installer's
-environment file, which the installer rewrites:
+**Memory limit for the Go runtime** — the `memory.conf` above. Without it,
+`k3s-server` grew to 1.2 GB holding memory it did not use
+([ADR-0011](adr/0011-memory-viability-on-4gb.md)). A systemd drop-in survives
+reinstalls of k3s, unlike the installer's environment file, which the
+installer rewrites. Written before the installer runs, it applies from k3s's
+first start (exercised 2026-10-28); on a node where k3s already runs, add it
+and run `sudo systemctl daemon-reload && sudo systemctl restart k3s`.
 
-```bash
-sudo install -d -m 0755 /etc/systemd/system/k3s.service.d
-printf '%s\n' '[Service]' 'Environment=GOMEMLIMIT=900MiB' \
-  | sudo tee /etc/systemd/system/k3s.service.d/memory.conf
-sudo systemctl daemon-reload && sudo systemctl restart k3s
-kubectl get --raw /metrics | grep '^go_gc_gomemlimit_bytes'   # 9.437184e+08
-```
+The figure is 900MiB on the 8 GB node too. `GOMEMLIMIT` bounds k3s's own heap,
+which grows with the objects in the cluster, not with the node's RAM; the
+cluster moved unchanged, so the figure that stopped GC thrash on 4 GB still
+fits. It is revisited with the new node's overhead measurement, by the check
+below.
 
 **Check the limit still has headroom** whenever the cluster gains a component.
 If collections run several times per second and the node's CPU is near 100%
@@ -775,7 +795,7 @@ the measurement ([ADR-0011](adr/0011-memory-viability-on-4gb.md) notes):
 
 ```bash
 kubectl get --raw /metrics | grep -E '^go_(memstats_sys_bytes|gc_gomemlimit_bytes|goroutines|gc_duration_seconds_count) '
-kubectl get --raw /api/v1/nodes/lagom-shared-01/proxy/stats/summary   # CPU of "kubelet" (k3s) vs "pods"
+kubectl get --raw /api/v1/nodes/<node-name>/proxy/stats/summary   # CPU of "kubelet" (k3s) vs "pods"
 ```
 
 Restarting k3s does not stop running containers (`KillMode=process`); only the
@@ -793,8 +813,9 @@ private** — which is why the check below probes from outside.
 **Verify:**
 
 ```bash
-sudo k3s kubectl get nodes        # lagom-shared-01   Ready
+sudo k3s kubectl get nodes        # <node-name>   Ready
 sudo k3s secrets-encrypt status   # Encryption Status: Enabled
+sudo k3s kubectl get --raw /metrics | grep '^go_gc_gomemlimit_bytes'   # 9.437184e+08
 # from a machine outside the tailnet path, against the public IP:
 for p in 22 80 443 6443 10250; do nc -z -G 5 -w 5 <public-ip> $p && echo "$p OPEN" || echo "$p closed"; done
 ```
@@ -827,7 +848,7 @@ below, applied in the admin console (*Access controls*), replaces it:
 }
 ```
 
-Then *Machines → lagom-shared-01 → Edit ACL tags → `tag:lagom-node`*.
+Then *Machines →* `<node-name>` *→ Edit ACL tags →* `tag:lagom-node`.
 
 **Why it works.** A tagged machine belongs to its tag, not to a person, so rules
 name roles — operators reach Lagom nodes — instead of people. Anything not
@@ -858,7 +879,7 @@ resort is Hetzner's rescue system, which boots the node from a separate image.
 for p in 22 80 443 6443 10250; do nc -z -G 5 -w 5 <public-ipv4> $p && echo "$p OPEN" || echo "$p closed"; done
 for p in 22 80 443 6443 10250; do nc -6 -z -G 5 -w 5 <public-ipv6> $p && echo "$p OPEN" || echo "$p closed"; done
 nc -z -G 5 -w 5 1.1.1.1 443                  # control: proves the probe can see an open port
-for p in 22 6443 10250; do nc -z -G 5 -w 5 lagom-shared-01 $p && echo "$p OPEN" || echo "$p closed"; done
+for p in 22 6443 10250; do nc -z -G 5 -w 5 <node-name> $p && echo "$p OPEN" || echo "$p closed"; done
 ```
 
 Expected: every public port closed while the control succeeds; over the tailnet
@@ -868,19 +889,35 @@ connection to the same listener succeeding.
 
 ### Operator kubeconfig (M1)
 
+Fetched from the node, with the server address and every `default` name
+replaced by the node's, then merged into `~/.kube/config` so the contexts of
+other clusters stay. kubectl merges the files listed in `KUBECONFIG`, and
+`config view --flatten` writes the result as one file with the certificates
+inline:
+
 ```bash
-umask 077 && mkdir -p ~/.kube
-ssh <admin-user>@lagom-shared-01 'sudo cat /etc/rancher/k3s/k3s.yaml' \
-  | sed -e 's#https://127.0.0.1:6443#https://lagom-shared-01.<tailnet>.ts.net:6443#' \
-        -e 's#: default$#: lagom-shared-01#' > ~/.kube/config
-kubectl get nodes
+umask 077 && mkdir -p ~/.kube && touch ~/.kube/config
+ssh <admin-user>@<node-name> 'sudo cat /etc/rancher/k3s/k3s.yaml' \
+  | sed -e 's#https://127.0.0.1:6443#https://<node-name>.<tailnet>.ts.net:6443#' \
+        -e 's#: default$#: <node-name>#' > ~/.kube/<node-name>.yaml
+KUBECONFIG=~/.kube/config:~/.kube/<node-name>.yaml kubectl config view --flatten > ~/.kube/config.merged \
+  && mv ~/.kube/config.merged ~/.kube/config && rm ~/.kube/<node-name>.yaml
+kubectl config get-contexts
+kubectl --context <node-name> get nodes
 ```
+
+The merge keeps the current context, so on a machine that already knew
+another cluster, `kubectl` without `--context` still talks to that one. While
+two clusters are in the file, **name the context on every command**:
+`--context <node-name>` for `kubectl` and `kubeseal`, `--kube-context
+<node-name>` for `helm`. The commands elsewhere in this runbook that carry no
+context assume the current one is the right cluster: add the flag to them, or
+switch first with `kubectl config use-context <node-name>`.
 
 This file is the **cluster-admin credential** — a client certificate with every
 right in the cluster. It never goes to Git or chat, `umask 077` keeps it
 readable only by its owner, and it is not shared: per-developer RBAC replaces it
-for anyone else (M7). The command overwrites `~/.kube/config`; merge instead if
-one already exists.
+for anyone else (M7).
 
 ### Install Argo CD (M1)
 
@@ -924,8 +961,21 @@ kubectl apply -f platform/infra/apps/root.yaml
 kubectl -n argocd get applications
 ```
 
-Expected within a few minutes: `root`, `argocd`, and `hello` all `Synced` and
-`Healthy`. `root` syncing is also the proof that Argo CD can read the repository.
+Expected within a few minutes: every Application in `platform/infra/apps/`
+`Synced` and `Healthy`. `root` syncing is also the proof that Argo CD can read
+the repository.
+
+**On an empty cluster the Applications race.** `root` creates them all at
+once, with no sync order, so `postgres-prod` and `postgres-staging` can try to
+create a `Cluster` and `SealedSecret`s before CloudNativePG and Sealed Secrets
+have installed those types. That sync fails and Argo CD retries it: its
+automated sync retries five times with backoff by default (Argo CD v3.5.5 —
+the retry is not set in our manifests). On 2026-10-28 `postgres-prod` failed
+twice and succeeded on the third try, 32 s after `root` was applied; all nine
+Applications were `Synced/Healthy`, with both Postgres `Cluster`s ready, 65 s
+after it. A sync still failed after five tries stays failed until the next
+commit; sync it once by hand
+(`argocd app sync <app> --core --kube-context <node-name>`).
 
 The first sync of `argocd` adopts the objects that `helm install` created, and
 takes longer than the others. When a change restarts the application controller
@@ -998,13 +1048,39 @@ kubectl -n kube-system get secret -l sealedsecrets.bitnami.com/sealed-secrets-ke
 rm sealed-secrets-key.yaml
 ```
 
-**Restore on a rebuild** — before Argo CD syncs anything sealed. *Not yet
-exercised; it is part of the M2 disaster-recovery drill.*
+**Restore on a rebuild** — after Argo CD is installed and before the root
+Application, so the controller finds the key when Argo CD first starts it and
+never generates one of its own. Save the Document from 1Password to the home
+folder (not a folder iCloud syncs), apply it, delete it:
 
 ```bash
-kubectl apply -f sealed-secrets-key.yaml        # the Document from 1Password
-kubectl -n kube-system delete pod -l app.kubernetes.io/name=sealed-secrets   # reload keys
+kubectl --context <node-name> apply --dry-run=server -f ~/sealed-secrets-key.yaml   # "created (server dry run)"
+kubectl --context <node-name> apply -f ~/sealed-secrets-key.yaml
+rm ~/sealed-secrets-key.yaml
+kubectl --context <node-name> -n kube-system get secret -l sealedsecrets.bitnami.com/sealed-secrets-key   # exactly one
 ```
+
+The exported file still carries its old cluster's `resourceVersion` and `uid`;
+on 2026-10-28 the API server accepted it as it is. If it ever refuses
+(`resourceVersion should not be set`), strip those lines first:
+`sed -E '/^[[:space:]]+(resourceVersion|uid|creationTimestamp):/d'`. Only if
+the controller was already running when the key arrived, restart it so it
+reloads its keys:
+`kubectl --context <node-name> -n kube-system delete pod -l app.kubernetes.io/name=sealed-secrets`.
+
+**Verify** once Argo CD has synced `sealed-secrets`: every `SealedSecret` is
+`SYNCED True`, and the controller's certificate is the one the backup was
+taken from. With the old cluster still up, compare the two certificates;
+without it, `SYNCED True` on every `SealedSecret` is the evidence, since no
+other key can decrypt them:
+
+```bash
+kubectl --context <node-name> get sealedsecrets -A
+for c in <old-node-name> <node-name>; do kubeseal --context $c --fetch-cert | openssl x509 -noout -fingerprint -sha256; done
+```
+
+Exercised 2026-10-28: one key Secret, five `SealedSecret`s `SYNCED True`, and
+the same fingerprint on both nodes.
 
 ### Postgres (M2)
 
@@ -1224,16 +1300,163 @@ above. No Job at all means the CronJob is not scheduling or the node is down;
 three `heartbeat attempt … failed` lines means the run worked and the ping did
 not.
 
+### Disaster recovery
+
+Used when the node is lost, or when the platform moves to a new node. With no
+Postgres backup yet ([ADR-0019](adr/0019-postgres-backup-deferred.md)),
+recovery is a **rebuild from Git plus a re-load from USGS**. Exercised on
+2026-10-28, moving from `lagom-shared-01` to `lagom-shared-02`, with the old
+node still up.
+
+**What survives the node, and where.** Everything the cluster runs is in Git.
+The sealing key and the SSH key are in 1Password. The Healthchecks.io checks,
+the GHCR images and the Tailscale policy live with their services. What is
+lost: Postgres's data (the re-load rebuilds the last 30 days of events, see
+below), dlt's cursor (rebuilt by the first run), and staging's `lagom_dev`
+(disposable by design). The Postgres passwords change: CloudNativePG
+generates new ones in `postgres-app`, and every consumer reads that Secret, so
+nothing has to be updated.
+
+**Procedure** — the sections above, in this order, on a node named with the
+next index:
+
+1. [Provision the node](#provision-the-node-m0). An ARM type: the images are
+   built for arm64 only.
+2. [Join the tailnet](#join-the-tailnet-m1), tag it `tag:lagom-node` and
+   disable key expiry. The [ACL](#tailscale-acl-and-zero-inbound-ports-m1)
+   already grants the tag, so it is not edited.
+3. [Install k3s](#install-k3s-m1), including the public-port check.
+4. [Add the kubeconfig context](#operator-kubeconfig-m1).
+5. [Install Argo CD](#install-argo-cd-m1).
+6. [Restore the sealing key](#sealed-secrets-m1) — before step 7.
+7. [Apply the root Application](#hand-over-to-argo-cd-m1) and wait for every
+   Application to be `Synced/Healthy` and both Postgres `Cluster`s ready.
+8. Run the pipeline [on demand](#staging-the-pipeline-cronjob), staging first,
+   then prod (`kubectl --context <node-name> -n <namespace> create job
+   --from=cronjob/usgs-pipeline usgs-manual-$(date +%s)`). Each Pod must show
+   `ingest`, `transform` and `heartbeat` with exit 0, `Done. PASS=… ERROR=0`
+   in `transform`, and `heartbeat sent: HTTP 200` in `heartbeat`. With no
+   cursor, the first run is the re-load.
+9. Check the row counts (the query in
+   [the CronJob section](#staging-the-pipeline-cronjob)): `bronze >= silver >=
+   gold`. dbt's `reconcile_*` tests already assert the relations between
+   layers in step 8.
+
+**While two clusters run at once** (a move, or a drill with the old node up):
+
+- **Both reconcile the same `main`.** A merge reaches both. Merge nothing to
+  `platform/infra/` that is meant for one node only.
+- **Both run the CronJobs and ping the same Healthchecks.io checks**, because
+  the sealed URLs decrypt with the same key on both. A check that stays *up*
+  proves nothing about the new node: the old one's pings would hide its
+  failures. Judge the new node by its `heartbeat` log, and power the old one
+  off as soon as the new one passes (the *When* paragraph of
+  [the checklist below](#retire-the-old-node)).
+- Both call the USGS API. Four requests every 30 minutes is far below any limit.
+
+**Measured on 2026-10-28** (timestamps from the drill's log, UTC):
+
+| Step | Start | Took | Notes |
+|---|---|---|---|
+| 1. Tailnet, tag, key expiry | — | not timed | done before the drill; verified with `tailscale status --json` |
+| 2. k3s (config, `GOMEMLIMIT`, install, checks) | 11:53:44 | 2 min 53 s | the installer itself took 26 s; the rest is verification and the port probes |
+| 3. kubeconfig context | 11:56:47 | 2 s | |
+| 4. Argo CD (`helm install --wait`) | 11:59:16 | 36 s | |
+| 5. Sealing key | 12:01:30 | 2 s | the exported Document applied as it is |
+| 6. Root Application to all `Synced/Healthy` | 12:01:32 | 65 s | `postgres-prod` retried twice (the race above) |
+| 7a. Staging run | 12:10:12 | 49 s | 9,883 rows loaded, `PASS=34`, heartbeat 200 |
+| 7b. Prod run | 12:13:45 | 30 s | 9,884 rows loaded, `PASS=34`, heartbeat 200 |
+
+**RTO: 20 min 31 s**, from the first command on the node to prod's first green
+run. About 6 minutes of it is the machine working; the rest is the operator
+reading results and starting the next step. It **excludes provisioning** (the
+server, cloud-init and the tailnet join were done before the drill and not
+timed; M0 estimated half an hour), so a rebuild from nothing is about 50
+minutes. That figure is an estimate, not a measurement. It also excludes
+history older than 30 days, which cannot be re-loaded (below).
+
+**What the re-load brings back.** Compared with the old node, both loaded by
+their 12:30 runs:
+
+| | bronze | silver | gold | oldest `updated` in bronze |
+|---|---|---|---|---|
+| old node, prod (loading since 2026-10-18) | 16,225 | 13,836 | 13,524 | 2026-09-18 |
+| new node, prod (first run 12:14) | 9,884 | 9,884 | 9,633 | 2026-09-28 |
+
+On the new node, bronze equals silver: a first load holds one revision per
+event, and later revisions accumulate from the next runs. Within the node,
+`bronze >= silver >= gold` holds, and dbt's `reconcile_*` tests passed in
+every run (`PASS=34`), including the scheduled 12:30 runs. The new node has
+3,952 events fewer in prod: those with an origin older than 30 days, which
+the USGS API does not return without `starttime` (the API's own `count`:
+9,474 events updated since 2026-10-01 without it, 12,318 with
+`starttime=2026-08-01`). **The operator accepted this limit on 2026-10-28**
+([ADR-0019](adr/0019-postgres-backup-deferred.md) notes): recovery brings
+back the last 30 days of events. A comparison of event ids between the two
+nodes over a shared window was not run.
+
+**Gaps the drill found, and what changed:**
+
+- The kubeconfig command overwrote `~/.kube/config`. It now merges, and
+  every command while two clusters are known names its context.
+- `GOMEMLIMIT` was added after the install, with a restart. The drop-in is now
+  written before the installer runs, so k3s starts with it.
+- The runbook hard-coded `lagom-shared-01`. It now uses `<node-name>`.
+- The `GOMEMLIMIT` check ran `kubectl` before the kubeconfig existed. It now
+  runs on the node (`sudo k3s kubectl`).
+- The expected Applications after the hand-over listed three of nine, and the
+  race on an empty cluster was undocumented. Both are now in
+  [Hand over to Argo CD](#hand-over-to-argo-cd-m1).
+- The sealing-key restore had never run. It worked as written. The section
+  now says when to run it, how to verify it, and what to do if the API refuses
+  the exported fields.
+- The re-load reaches 30 days back at most, and normal runs never load a
+  revision published after an event is 30 days old. This is a limit of the
+  USGS API's default, not of the runbook, and the operator accepted it
+  ([`services/usgs/README.md`](../services/usgs/README.md)).
+
+#### Retire the old node
+
+**When:** first power it off, as soon as the new node's staging and prod runs
+pass. In the Hetzner Console choose *Power off*, not *Delete*: it is
+reversible, and it stops the old node's CronJobs and heartbeats. Then wait
+**24 hours**, in which both Healthchecks.io checks must stay *up* (48 pings
+each, all from the new node). Delete only after that.
+
+**What to remove**, in this order:
+
+1. **Hetzner — the server.** Turn off its delete and rebuild protection, then
+   delete it, together with its primary IPv4 and IPv6 (Hetzner offers to
+   delete them with the server; nothing else uses them).
+2. **Hetzner — its firewall.** Open *Firewalls* and check *Resources*: delete
+   the firewall only if the old server was its only resource. If the new node
+   uses the same firewall, keep it.
+3. **Tailscale.** *Machines →* `<old-node-name>` *→ Remove*.
+4. **The operator's kubeconfig** — the old cluster's context, cluster and
+   credential, then make the new one current:
+
+   ```bash
+   kubectl config delete-context <old-node-name>
+   kubectl config delete-cluster <old-node-name>
+   kubectl config delete-user <old-node-name>
+   kubectl config use-context <node-name>
+   ```
+
+5. **The operator's `known_hosts`:** `ssh-keygen -R <old-node-name>`.
+
+Nothing in Git needs to change. Only records of the old node's history still
+name it.
+
 ### Sections to fill as the platform is built
 
 - **Backup and restore** — what is backed up, where, how often, and the
   **measured** restore procedure. (at the backup trigger,
   [ADR-0019](adr/0019-postgres-backup-deferred.md))
-- **Disaster recovery** — rebuild from Git, then re-load bronze from USGS and
-  run `dbt build`, with measured RTO; from Git plus the latest backup once one
-  exists. (M2)
+- **Disaster recovery from a backup** — from Git plus the latest backup, once
+  one exists; the rebuild without one is *Disaster recovery* above.
 - **Secret rotation** — how to rotate a source credential and a database
-  password. (M2)
+  password. (M3, when a credential is first rotated: the drill rotated
+  nothing)
 - **On failure** — where to look: Argo CD sync state, Dagster run history, pod
   logs. (M3)
 

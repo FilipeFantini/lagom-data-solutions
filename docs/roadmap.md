@@ -37,7 +37,7 @@ dbt, Postgres, Dagster.
 | Row Level Security | second consumer with segregated data |
 | PostgREST | first API requirement |
 | Metabase, Superset or Lightdash | a client needs ad-hoc, self-service exploration — behind login |
-| 8 GB node | **decided 2026-10-27** for M3 ([ADR-0020](adr/0020-move-to-the-8-gb-node.md)); obtained 2026-10-28 as a new node in another location, `lagom-shared-02` — the migration is M3's first item |
+| 8 GB node | **decided 2026-10-27** for M3 ([ADR-0020](adr/0020-move-to-the-8-gb-node.md)); obtained 2026-10-28 as a new node in another location, `lagom-shared-02`, and the platform moved to it the same day |
 | Big-data stack (Apache Iceberg, Spark or Trino, Airflow) | later, as the comparison that shows where the SME stack stops; infrastructure sized for it and its own ADR ([ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed) |
 | In-cluster policy engine (Kyverno, Gatekeeper) | a second writer to the cluster besides Argo CD — [ADR-0013](adr/0013-agent-driven-development-guardrails.md) |
 | Automated staging digest bump (bot commit after a build) | manual staging bumps become routine, and the bot meets [ADR-0013](adr/0013-agent-driven-development-guardrails.md) rule 3 for infrastructure manifests — [ADR-0015](adr/0015-images-on-ghcr.md) |
@@ -70,9 +70,9 @@ Re-introducing a practice excluded in
 
 | Field | Value | Why |
 |---|---|---|
-| Location | `nbg1` (Nuremberg) | EU, Cost-Optimized line available |
+| Location | `nbg1` (Nuremberg) for `lagom-shared-01`; `fsn1` (Falkenstein) for `lagom-shared-02` | EU, Cost-Optimized line available; the CAX21 was not available as a resize in `nbg1` ([ADR-0020](adr/0020-move-to-the-8-gb-node.md)) |
 | Image | **Debian 13** | no snapd, less aggressive auto-upgrade; ~150 MB lighter resident than Ubuntu, which is ~6% of the job budget |
-| Type | CAX11 (2 ARM vCPU, 4 GB) | [ADR-0002](adr/0002-single-node-k3s-hetzner.md) |
+| Type | CAX11 (2 ARM vCPU, 4 GB) for `lagom-shared-01`; CAX21 (4 ARM vCPU, 8 GB) since `lagom-shared-02` | [ADR-0002](adr/0002-single-node-k3s-hetzner.md), [ADR-0020](adr/0020-move-to-the-8-gb-node.md). ARM, because the images are built for arm64 only |
 | IPv4 | yes | IPv6-only breaks registries and endpoints that still lack v6 |
 | IPv6 | yes | free |
 | Private network | no | only links Hetzner servers; the Pi joins over Tailscale |
@@ -83,7 +83,7 @@ Re-introducing a practice excluded in
 | Backups | no | VM rollback is not needed: the machine is reproducible from Git. Postgres today holds only data a re-load from the source rebuilds; its backup enters by its own trigger ([ADR-0019](adr/0019-postgres-backup-deferred.md)) |
 | Placement group | no | only spreads multiple servers across physical hosts |
 | Labels | `project=lagom`, `env=shared`, `role=k3s-server` | free, and saves effort in the CLI and the invoice |
-| Name | `lagom-shared-01` | `<project>-<environment>-<index>`. The node hosts both the prod and the staging namespace ([ADR-0007](adr/0007-three-environments.md)), so it is `shared`; `lagom-prod-01` is left for a dedicated prod node |
+| Name | `lagom-shared-01`, then `lagom-shared-02` | `<project>-<environment>-<index>`. The node hosts both the prod and the staging namespace ([ADR-0007](adr/0007-three-environments.md)), so it is `shared`; `lagom-prod-01` is left for a dedicated prod node |
 
 **Cloud-init hardens SSH only — it does not install k3s.** Installing the
 cluster from user-data would hide the mechanism this milestone exists to teach.
@@ -215,11 +215,17 @@ mechanism and destination are still chosen then, measured on the node
 
 The node that M3 needs, and the orchestration every showcase uses.
 
-- [ ] **Move to `lagom-shared-02`** (8 GB) from Git and the runbook — this is
+- [x] **Move to `lagom-shared-02`** (8 GB) from Git and the runbook — this is
       the **disaster-recovery drill**: time each step, fix every gap the
-      runbook shows, record the measured RTO. Delete `lagom-shared-01` once
-      prod runs on the new node ([ADR-0020](adr/0020-move-to-the-8-gb-node.md))
-- [ ] Runbook: disaster recovery and secret rotation, written from the drill
+      runbook shows, record the measured RTO
+      ([ADR-0020](adr/0020-move-to-the-8-gb-node.md)). Done 2026-10-28: 20 min
+      31 s from the first command on the node to prod's first green run
+      ([runbook](architecture.md#disaster-recovery))
+- [ ] Delete `lagom-shared-01` — by the checklist in the
+      [runbook](architecture.md#retire-the-old-node)
+- [x] Runbook: disaster recovery, written from the drill
+- [ ] Runbook: secret rotation — the drill rotated nothing, so it is written
+      when a credential is first rotated
 - [ ] Measure the new node's overhead and set its CI ceiling, as ADR-0016 did
 - [ ] **Spike: the SME stack** — the USGS pipeline into DuckLake (Postgres
       catalog, data on R2) with dbt-duckdb; Evidence reading it; compaction of

@@ -46,6 +46,17 @@ one — re-running a window inserts nothing new, and an overlap between runs is
 harmless. `append` would duplicate on every re-run; a key on `id` alone would
 overwrite history.
 
+**Only events from the last 30 days, by origin time.** The query sends no
+`starttime`, and the API then returns only events whose origin is in the last
+30 days, whatever `updatedafter` says (checked 2026-10-28 with the `count`
+endpoint: 9,474 events updated since 2026-10-01 without `starttime`, 12,318
+with `starttime=2026-08-01`). Two consequences, **accepted by the operator on
+2026-10-28**: a revision published after an event is 30 days old is never
+loaded, so silver's "latest revision" is the latest one published within 30
+days of the origin; and a re-load after losing the node, or a backfill with
+`--since`, brings back 30 days of events at most
+([ADR-0019](../../docs/adr/0019-postgres-backup-deferred.md) notes).
+
 **Types.** `properties` becomes typed columns (`properties__mag`,
 `properties__place`, ...). `time` and `updated` stay `BIGINT` epoch
 milliseconds in bronze; silver converts them. The API writes a magnitude as `4`
