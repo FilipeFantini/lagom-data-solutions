@@ -199,7 +199,7 @@ consumption). Each layer's guaranteed schema is a contract — see
 **The project** is `platform/warehouse/`. For USGS, silver is
 `stg_usgs__events` (the latest revision of each event, typed, times in UTC) and
 gold is `fct_earthquakes` (earthquakes only, with magnitude and depth classes —
-the globe's source) and `agg_earthquakes_daily_region`. Both gold models have an
+the small-data showcase's main table) and `agg_earthquakes_daily_region`. Both gold models have an
 enforced contract. `dbt build` runs the tests with the models: keys, ranges and
 accepted values; reconciliation of row counts between the layers
 (`tests/reconcile_*.sql`); and unit tests of the dedup, the region parsing and
@@ -386,7 +386,7 @@ and sees the dashboard — no install, with WAF and rate limiting included.
 
 ### Signed URL
 
-**Requires object storage, so it is unavailable until the lakehouse trigger**
+**Requires object storage, so it is unavailable until R2 enters (M4)**
 ([ADR-0008](adr/0008-postgres-for-all-layers.md)); a consumer that needs it is
 itself one of the triggers.
 
