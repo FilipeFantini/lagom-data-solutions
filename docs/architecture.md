@@ -269,7 +269,7 @@ The public face is static: nothing on the node serves it
 | **Astro** | the site at getlagom.app: pages, copy, the gallery of showcases | 0 (static, Cloudflare Pages) | M4 |
 | **Evidence** | the dashboards: SQL + Markdown, charts built on Apache ECharts, built by a Dagster step in the cluster after each run | 0 resident (an ephemeral build job) | M4 |
 | **Streamlit** | interactive apps | 200–250 MB | an app a static page cannot serve |
-| **Grafana** | time series, pipeline health, alerting — for the operator, over the tailnet | 150 MB | with infrastructure observability, after the USGS showcase is live ([roadmap](roadmap.md#trigger-table)) |
+| **Grafana** | time series, pipeline health, alerting — for the operator, over the tailnet | 150 MB | with infrastructure observability, after the USGS showcase is live ([roadmap](roadmap.md#trigger-table)); the stack's other components are not in §11 until measured |
 
 How a dashboard is published: a Dagster step after each run builds Evidence in
 the cluster and deploys the static pages to Cloudflare Pages, an outbound
