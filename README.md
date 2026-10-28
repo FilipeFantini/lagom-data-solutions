@@ -1,18 +1,40 @@
 # Lagom Data Solutions
 
-An open-source data platform that runs on minimal infrastructure, costs under
-EUR 8 a month, and grows by composition.
+An open project that combines open-source stacks to deliver data solutions on
+minimal infrastructure.
 
-Scarce RAM is expensive RAM, so cheap infrastructure is where small businesses
-have to operate. Cheap should not mean fragile — it means designing against the
-constraint instead of around it. This repository is the proof: a full platform
-with ingestion, transformation, orchestration, GitOps delivery, reporting, and
-data sharing, on a single 4 GB node.
+**The problem.** Most organisations do not have big data. Their data fits on
+one machine, often in its memory. Yet the default answer is a stack sized for
+volumes they will never reach: distributed engines, warehouses billed per
+query, and many resident services to operate. The cost and the
+operational weight come from the tools, not from the data.
 
-> **Status:** M1 in progress — the node runs k3s, reachable over Tailscale; no
-> workloads yet. See
-> [`docs/roadmap.md`](docs/roadmap.md) for what exists and what is deliberately
-> absent.
+**What this project does.** It puts together open-source tools that each do
+one job with little resident memory: ingestion, transformation,
+orchestration, GitOps delivery and publishing. The platform runs on a single
+small node and grows by composition: a new source is one more pipeline on the
+same backbone. Each architecture is measured (rows, run time, memory) and
+will be shown with those numbers on getlagom.app (M4), so the claim "you do
+not need a big-data stack" can be checked, not just believed. A big-data stack enters later, as the comparison
+that shows where the small one stops
+([ADR-0023](docs/adr/0023-sme-stack-duckdb-on-ducklake.md), proposed).
+
+Two rules hold throughout. **Cheap must not mean fragile:** the resource
+budget is a constraint designed against, with tests, data reconciliation,
+GitOps and a rehearsed disaster recovery. **The operator must understand the
+system:** every choice is recorded with its alternatives and trade-offs.
+
+> **The name.** *Lagom* is a Swedish word for "not too little, not too much —
+> just enough". It is the design rule here: as much infrastructure as the data
+> needs, and no more.
+
+> **Status:** M3 in progress. One pipeline (USGS earthquakes: dlt, then dbt)
+> runs every 30 minutes in staging and prod on a single 8 GB node; the
+> platform was rebuilt on it in 20 minutes once the server existed, as a
+> disaster-recovery drill: everything from Git, the sealing key from its
+> backup, and the last 30 days of data re-loaded from the source. Next: Dagster and the SME-stack spike. See
+> [`docs/roadmap.md`](docs/roadmap.md) for what exists and what is
+> deliberately absent.
 
 ## How it works
 
@@ -38,7 +60,7 @@ Full detail in [`docs/architecture.md`](docs/architecture.md).
 
 | Layer | Tool |
 |---|---|
-| Kubernetes | k3s on a Hetzner CAX11, Raspberry Pi as edge agent |
+| Kubernetes | k3s on one ARM node (Hetzner CAX21, 8 GB); a Raspberry Pi as edge agent (M6) |
 | GitOps | Argo CD |
 | Batch ingestion | dlt |
 | Event ingestion | Redpanda Connect |
