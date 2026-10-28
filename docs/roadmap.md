@@ -27,7 +27,7 @@ dbt, Postgres, Dagster.
 | Object storage (Cloudflare R2) | the SME-stack spike (M3), as the store of DuckLake's data files ([ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed) |
 | DuckDB and DuckLake (the SME stack) | the spike in M3; the warehouse moves from Postgres when it passes ([ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed; until then [ADR-0008](adr/0008-postgres-for-all-layers.md)) |
 | Second VPS (real environment isolation) | a real client |
-| Terraform for resources outside the cluster (Hetzner server and firewall, Tailscale ACL, Cloudflare DNS, R2 and Pages) | M3, with the move to `lagom-shared-02`, which is imported rather than recreated ([ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed). An ADR at entry settles the state backend (HCP Terraform's free plan is the candidate), which resources Terraform owns, and the hand-off to Argo CD |
+| Terraform for resources outside the cluster (Hetzner server and firewall, Tailscale ACL, Cloudflare DNS, R2 and Pages) | the next node created or rebuilt. **Deferred by the operator on 2026-10-28**, after the move to `lagom-shared-02` had been planned as its entry: it adds work outside the data showcases, and the candidate state backend, HCP Terraform's free plan, is one more freemium vendor. The CLI is free; the state backend is the choice that needs its ADR. Existing resources are adopted with `import`, which records them without recreating them, so `lagom-shared-02` can still be brought under code later ([ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md)) |
 | Evidence | M4 — the dashboard gallery on getlagom.app ([ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md)) |
 | Cloudflare Access (login) | the first content that must not be public. The site and its showcases are public data |
 | NATS | second consumer of the same stream, or a replay requirement |
@@ -215,8 +215,6 @@ mechanism and destination are still chosen then, measured on the node
 
 The node that M3 needs, and the orchestration every showcase uses.
 
-- [ ] **Terraform**, with its ADR (state backend), importing `lagom-shared-02`
-      — server and firewall — rather than recreating it ([ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed)
 - [ ] **Move to `lagom-shared-02`** (8 GB) from Git and the runbook — this is
       the **disaster-recovery drill**: time each step, fix every gap the
       runbook shows, record the measured RTO. Delete `lagom-shared-01` once

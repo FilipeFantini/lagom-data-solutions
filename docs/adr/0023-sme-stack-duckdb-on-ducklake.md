@@ -124,3 +124,17 @@ Sources checked on 2026-10-28:
 [dlt DuckLake destination](https://dlthub.com/docs/dlt-ecosystem/destinations/ducklake),
 [dbt on DuckLake](https://motherduck.com/docs/cookbook/dbt-local-ducklake.md),
 [DuckDB vs Postgres (vendor article)](https://motherduck.com/learn/duckdb-vs-postgres-embedded-analytics/).
+
+## Notes
+
+The text above is kept as proposed. These notes record what changed since,
+without rewriting it.
+
+- **2026-10-28 — Terraform withdrawn from this ADR.** The operator decided
+  not to bring Terraform in with the move: the move to `lagom-shared-02` is
+  done by hand from the runbook, and Terraform stays deferred as
+  [ADR-0022](0022-platform-as-a-portfolio-of-architectures.md) and
+  [ADR-0020](0020-move-to-the-8-gb-node.md) already say. The section
+  "Terraform with the move" and Terraform's timing in the supersession list
+  above no longer apply; the trigger is in the
+  [roadmap](../roadmap.md#trigger-table).
