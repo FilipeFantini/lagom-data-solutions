@@ -1,0 +1,56 @@
+# Where prod's Postgres is backed up: the R2 bucket lagom-prod-backups
+# (ADR-0025). The Barman Cloud plugin reads this object; the Cluster names it
+# in spec.plugins. No namespace here: Argo CD's destination sets it.
+#
+# Two kinds of copy land in the bucket. WAL archiving ships every completed
+# write-ahead log segment as soon as Postgres closes it (at the latest every
+# 5 minutes, CloudNativePG's archive_timeout). Base backups are full copies,
+# taken by scheduledbackup.yaml. A restore starts from a base backup and
+# replays WAL up to any moment after it: point-in-time recovery.
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: r2-backups
+spec:
+  # Base backups older than this, and the WAL only they need, are deleted.
+  # A month: Dagster's run history and the DuckLake catalog will live here,
+  # and a month of point-in-time recovery stays far inside R2's free tier.
+  retentionPolicy: "30d"
+  configuration:
+    destinationPath: s3://lagom-prod-backups/
+    # The token is scoped to this bucket only, with object read and write
+    # (ADR-0025). Sealed in r2-backups-sealed.yaml.
+    s3Credentials:
+      accessKeyId:
+        name: r2-backups
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: r2-backups
+        key: ACCESS_SECRET_KEY
+    wal:
+      compression: gzip
+    data:
+      compression: gzip
+  instanceSidecarConfiguration:
+    env:
+      # The R2 endpoint contains the Cloudflare account ID, which stays out of
+      # this public repository: it travels in the sealed Secret, and the AWS
+      # SDK under barman-cloud reads it from this variable when no endpointURL
+      # is set above. R2 uses the region name "auto".
+      - name: AWS_ENDPOINT_URL_S3
+        valueFrom:
+          secretKeyRef:
+            name: r2-backups
+            key: ENDPOINT
+      - name: AWS_DEFAULT_REGION
+        value: auto
+    # The sidecar runs in the Postgres Pod and starts barman-cloud (Python)
+    # for each WAL segment and backup. Starting figures, corrected from
+    # `kubectl top pod --containers` (ADR-0025): 18 Mi measured in staging
+    # during a base backup, 2026-10-28.
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 256Mi

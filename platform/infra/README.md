@@ -14,7 +14,7 @@ bootstrap — merge to `main` and Argo CD converges.
 | `cloudnative-pg/values.yaml` | Helm values for the operator that runs Postgres from `Cluster` objects |
 | `barman-cloud/values.yaml` | Helm values for the Barman Cloud plugin, which backs up each Postgres `Cluster` to R2 ([ADR-0025](../../docs/adr/0025-postgres-backup-barman-cloud-to-r2.md)) |
 | `cert-manager/values.yaml` | Helm values for cert-manager, which issues the plugin's TLS certificates |
-| `postgres-prod/` | The prod database: one CloudNativePG `Cluster`. The operator generates its credentials in the cluster; nothing is committed. Its `NetworkPolicy` admits only `prod` and the operator, so staging cannot reach it |
+| `postgres-prod/` | The prod database: one CloudNativePG `Cluster`. The operator generates its credentials in the cluster; nothing is committed. Its `NetworkPolicy` admits only `prod` and the operator, so staging cannot reach it. Backed up to R2 (`ObjectStore`, `ScheduledBackup`, the sealed R2 token) |
 | `postgres-staging/` | The staging database: a `Cluster` mirroring prod's, the developer's `lagom_dev` role and database, a ResourceQuota and LimitRange, the sealed credential for that role, and its backup to R2 (`ObjectStore`, `ScheduledBackup`, the sealed R2 token) |
 | `hello/` | A trivial nginx that proves the loop works |
 

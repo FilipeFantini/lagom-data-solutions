@@ -74,6 +74,18 @@ spec:
   # through `kubectl exec` into the Pod, which reaches the local socket.
   enableSuperuserAccess: false
 
+  # Backups (ADR-0025): the Barman Cloud plugin archives every WAL segment to
+  # the ObjectStore r2-backups (objectstore.yaml) and takes the base backups
+  # scheduledbackup.yaml asks for. isWALArchiver makes it the one place WAL
+  # goes. If archiving fails, Postgres keeps the WAL on its volume and the
+  # Cluster reports it, so the failure is loud, not silent: watch the
+  # volume, since it fills if archiving stays broken.
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: r2-backups
+
   # The read-only group for consumers of gold (architecture.md §10, permission
   # model). The operator creates it and keeps it matching this block; it can
   # do nothing on its own: NOLOGIN, no password, no attribute beyond the

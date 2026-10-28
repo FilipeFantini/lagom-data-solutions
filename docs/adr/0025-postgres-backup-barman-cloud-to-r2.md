@@ -1,7 +1,7 @@
 # ADR-0025 — Postgres backup: the Barman Cloud plugin to Cloudflare R2, staging first
 
 - **Status:** Accepted for staging; prod follows once a restore in staging has
-  passed (see *How it is accepted*)
+  passed (see *How it is accepted*). Prod enabled 2026-10-28; see the notes
 - **Date:** 2026-10-28
 - **Decided by:** the operator, on 2026-10-28, choosing the plugin over a
   `pg_dump` job.
@@ -98,3 +98,29 @@ hundred megabytes and a WAL segment every few minutes stay well inside it.
 
 Reversal: remove `plugins` from the Cluster, then the ObjectStore and the
 ScheduledBackup, then the two Applications. The bucket keeps what was written.
+
+## Notes after acceptance
+
+The text above is kept as accepted. These notes record what changed since,
+without rewriting it.
+
+- **2026-10-28 — staging results.** Measured on 2026-10-28 (runbook, *Backup and
+  restore*):
+  - **WAL archiving to R2 works.** The endpoint passed as
+    `AWS_ENDPOINT_URL_S3` is honoured.
+  - **A base backup completed** in 15 s.
+  - **A restore into a new Cluster** was ready in 68 s. It held every row up to
+    the last archived WAL; a pipeline run 2 minutes later was not yet archived.
+  - **Measured memory:** the sidecar used 18 MiB during a base backup, the
+    plugin 19 MiB, and cert-manager's three Pods 34, 31 and 17 MiB.
+  - **One defect found.** The immediate backup fails while the Pod restarts to
+    add the plugin. The runbook says to take one by hand.
+
+  Steps 1–3 passed. Step 4, retention, cannot show anything before backups
+  are 7 days old.
+- **2026-10-28 — prod enabled before step 4,** by the operator's decision.
+  A retention failure only grows the bucket, inside R2's free tier, and loses
+  no data. Prod had no backup at all, and Dagster's history is next. Prod uses
+  `lagom-prod-backups` with 30-day retention. **Retention is checked on
+  2026-11-05** in staging's sidecar log. If it fails there, prod's retention is
+  revisited before its bucket outgrows the free tier.

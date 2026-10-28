@@ -23,7 +23,7 @@ dbt, Postgres, Dagster.
 | Piece | Enters when |
 |---|---|
 | `staging` namespace | M2 — once there is something to promote |
-| Postgres backup | Postgres holds state no source can rebuild (Dagster's metastore in M3, a non-replayable source in M6), or someone other than the operator relies on the database itself — the site does not: it serves pages built after each run — [ADR-0019](adr/0019-postgres-backup-deferred.md); accepted as debt, [architecture.md §12](architecture.md#12-accepted-risks) |
+| Postgres backup | **entered 2026-10-28** ([ADR-0025](adr/0025-postgres-backup-barman-cloud-to-r2.md)). The trigger was: Postgres holds state no source can rebuild (Dagster's metastore in M3, a non-replayable source in M6), or someone other than the operator relies on the database itself — the site does not: it serves pages built after each run — [ADR-0019](adr/0019-postgres-backup-deferred.md); accepted as debt, [architecture.md §12](architecture.md#12-accepted-risks) |
 | Object storage (Cloudflare R2) | the SME-stack spike (M3), as the store of DuckLake's data files ([ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed) |
 | DuckDB and DuckLake (the SME stack) | the spike in M3; the warehouse moves from Postgres when it passes ([ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed; until then [ADR-0008](adr/0008-postgres-for-all-layers.md)) |
 | Second VPS (real environment isolation) | a real client |
@@ -80,7 +80,7 @@ Re-introducing a practice excluded in
 | Cloud config | [runbook](architecture.md#provision-the-node-m0) | creates a personal sudo user, disables root and password login |
 | Volume | no | 40 GB local is enough for megabytes in Postgres; disk pressure is a lakehouse trigger ([ADR-0008](adr/0008-postgres-for-all-layers.md)) |
 | Firewall | yes — inbound port 22 from the operator's IP only, until Tailscale is verified; then **no inbound rules** | runs outside the VM, so no RAM cost. **Never expose 6443.** Tailscale and Cloudflare Tunnel are outbound, so inbound drops to zero ([runbook](architecture.md#tailscale-acl-and-zero-inbound-ports-m1)) |
-| Backups | no | VM rollback is not needed: the machine is reproducible from Git. Postgres today holds only data a re-load from the source rebuilds; its backup enters by its own trigger ([ADR-0019](adr/0019-postgres-backup-deferred.md)) |
+| Backups | no | VM rollback is not needed: the machine is reproducible from Git. Postgres is backed up on its own, to R2, since 2026-10-28 ([ADR-0025](adr/0025-postgres-backup-barman-cloud-to-r2.md)) |
 | Placement group | no | only spreads multiple servers across physical hosts |
 | Labels | `project=lagom`, `env=shared`, `role=k3s-server` | free, and saves effort in the CLI and the invoice |
 | Name | `lagom-shared-01`, then `lagom-shared-02` | `<project>-<environment>-<index>`. The node hosts both the prod and the staging namespace ([ADR-0007](adr/0007-three-environments.md)), so it is `shared`; `lagom-prod-01` is left for a dedicated prod node |
@@ -235,11 +235,14 @@ The node that M3 needs, and the orchestration every showcase uses.
       small files; memory and time against Postgres, including the Evidence
       build and the Pages deploy. Accept or revise
       ADR-0023 with the numbers
-- [ ] Postgres backup — before Dagster's metastore, whose run history exists
+- [x] Postgres backup — before Dagster's metastore, whose run history exists
       only on the node. With the SME stack the state to protect is the catalog
       ([ADR-0019](adr/0019-postgres-backup-deferred.md)). Barman Cloud plugin
-      to R2 ([ADR-0025](adr/0025-postgres-backup-barman-cloud-to-r2.md)):
-      staging first, prod after a restore in staging passes
+      to R2 ([ADR-0025](adr/0025-postgres-backup-barman-cloud-to-r2.md)), in
+      staging and prod since 2026-10-28; a restore in staging was tested
+      ([runbook](architecture.md#backup-and-restore-m3))
+- [ ] Check backup retention on 2026-11-05: staging's 7-day retention must
+      delete its first expired backup without error (ADR-0025 notes)
 - [ ] Dagster with Postgres metastore
 - [ ] dlt and dbt assets
 - [ ] Native failure alerting
