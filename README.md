@@ -45,8 +45,8 @@ flowchart TB
 
 Data comes in through ingestion jobs that start, do their work, and exit. It
 is stored in layers (raw, cleaned, modelled) and transformed with dbt.
-Dagster schedules the work from the outside. The public side is a static
-site, so visitors never reach the cluster. Argo CD keeps the cluster in sync
+Dagster is set to schedule the work from the outside, and the public side
+will be a static site, so visitors never reach the cluster. Argo CD keeps the cluster in sync
 with this repository, so changes arrive through Git, not by hand.
 
 ## The stack
@@ -77,7 +77,7 @@ come later, as the comparison that shows where the small one stops.
 ## Running it
 
 The [runbook](docs/architecture.md#13-runbook) takes an empty server to the
-full platform, step by step, with commands that were actually run. After that,
+platform as it stands, step by step, with commands that were actually run. After that,
 every change reaches the cluster through a pull request.
 
 ## Layout
