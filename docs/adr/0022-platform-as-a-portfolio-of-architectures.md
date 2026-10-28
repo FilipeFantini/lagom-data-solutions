@@ -68,6 +68,11 @@ The site and the dashboards live under `products/`, the directory
 4. **Streaming** (M6).
 5. Heavier market stacks, later, each by its own trigger and ADR.
 
+**The globe** ([`use-case-globe.md`](../use-case-globe.md), the former M6) leaves
+the milestones: its tools (Streamlit with pydeck) have no use case among the
+showcases, and a globe is one more visual, not one more architecture. Its
+sources remain candidates for the streaming showcase.
+
 The public site needs **no login**: every showcase uses public data. Login
 (Cloudflare Access) enters with the first content that must not be public.
 
@@ -94,7 +99,8 @@ either directly for the gallery would rebuild what Evidence provides.
 month, and the free offer ends; R2's egress is free and its free tier
 permanent.
 
-**Argo Workflows instead of Dagster.** About 100 MiB against Dagster's
+**Argo Workflows instead of Dagster.** About 100 MiB (an estimate, never
+measured here) against Dagster's
 measured ~550 MiB, and it fit the 4 GB node. Not needed once the 8 GB node
 existed: Dagster gives assets, lineage and the dlt and dbt integrations.
 

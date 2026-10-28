@@ -229,6 +229,9 @@ The node that M3 needs, and the orchestration every showcase uses.
 - [ ] Freshness threshold declared and asserted
 - [ ] Runbook: on-failure section
 
+End of M3 = the backbone on its final node, orchestrated. **Natural checkpoint
+to stop and reassess before adding anything.**
+
 ## M4 — getlagom.app
 
 The platform's public face: a static site and a gallery of dashboards, with

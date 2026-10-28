@@ -47,11 +47,11 @@ Postgres — bronze / silver / gold schemas
 Access channels
 ```
 
-**The lakehouse is the destination design, deferred with a trigger.** Object
-storage with an open table format for bronze and silver, and DuckDB as the
-compute engine, enter when a measured limit appears — see
-[ADR-0008](adr/0008-postgres-for-all-layers.md). Until then every layer lives in
-Postgres.
+**The lakehouse is a showcase, not the backbone.** The small-data showcase keeps
+every layer in Postgres ([ADR-0008](adr/0008-postgres-for-all-layers.md)). Object
+storage enters in M4 as Cloudflare R2, only as the bridge that carries Parquet
+exports to the site; an open table format and DuckDB enter in M5, as the
+medium-data showcase ([ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md)).
 
 Dagster orchestrates from the outside: it triggers jobs and records state,
 lineage, and retries. It is not a step in the flow because data does not pass
@@ -66,8 +66,8 @@ through it.
 | `getlagom.app` domain, registered and served by Cloudflare | public entry via Cloudflare (M4) |
 
 Cost: EUR 7.37/month for the node, as shown in the Hetzner Console on
-2026-10-12 ([ADR-0002](adr/0002-single-node-k3s-hetzner.md)). No object storage until the lakehouse
-trigger; the prices checked for that moment are in ADR-0008.
+2026-10-12 ([ADR-0002](adr/0002-single-node-k3s-hetzner.md)). Object storage (R2) enters in M4 on its
+free tier ([ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md)); the prices checked earlier are in ADR-0008.
 
 **Outside the cluster, principle 3 does not hold yet.** The server, its
 firewall, the Tailscale ACL, and the Healthchecks.io checks are created by

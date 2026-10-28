@@ -105,3 +105,7 @@ without rewriting it.
   '{"metadata":{"finalizers":null}}'`); Traefik, its HelmCharts and CRDs were
   then gone. Disabling servicelb while a LoadBalancer Service exists needs
   that step.
+- **2026-10-28 — Cloudflare Tunnel is no longer M4.** After
+  [ADR-0022](0022-platform-as-a-portfolio-of-architectures.md) the site is static on Cloudflare Pages and needs no tunnel;
+  Tunnel and Access enter with the first content that must not be public. The
+  reasoning above holds: `cloudflared` forwards to a Service, with no ingress.
