@@ -94,6 +94,21 @@ Lint, as CI runs it (dialect `postgres`, jinja templater, config in
 uv run --project platform/warehouse --locked sqlfluff lint platform/warehouse
 ```
 
+## Two targets: Postgres and DuckLake
+
+`dev` (and the CronJobs' environment) builds on Postgres. `lake` builds the
+same models on DuckLake with DuckDB, for the SME stack run by Dagster
+([ADR-0026](../../docs/adr/0026-dagster-one-instance-per-environment.md)). Its
+settings are listed in `profiles.yml` and in the code location's
+[README](../orchestration/README.md). Three things differ by target:
+
+- The SQL is portable: `trim`, not Postgres's `btrim`.
+- The `gold_reader` grants and the privileges test run on Postgres only.
+  DuckLake has no per-table grants: read access there is an R2 token and a
+  catalog role ([ADR-0023](../../docs/adr/0023-sme-stack-duckdb-on-ducklake.md)).
+- **Partial parsing can carry one target's result into the other.** Pass
+  `--no-partial-parse` when switching targets in the same checkout.
+
 ## Image
 
 `Dockerfile` builds `ghcr.io/filipefantini/lagom-warehouse`, whose entrypoint is

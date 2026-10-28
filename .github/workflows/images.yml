@@ -9,12 +9,14 @@ on:
     paths:
       - "services/**"
       - "platform/warehouse/**"
+      - "platform/orchestration/**"
       - ".github/workflows/images.yml"
   push:
     branches: [main]
     paths:
       - "services/**"
       - "platform/warehouse/**"
+      - "platform/orchestration/**"
       - ".github/workflows/images.yml"
 
 permissions:
@@ -38,6 +40,9 @@ jobs:
         include:
           - { name: usgs, context: services/usgs }
           - { name: warehouse, context: platform/warehouse }
+          # The code location bundles services and the dbt project, so its
+          # context is the repository root and its Dockerfile is named.
+          - { name: orchestration, context: ., file: platform/orchestration/Dockerfile }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -46,6 +51,8 @@ jobs:
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: ${{ matrix.context }}
+          # Empty for most rows: then the action uses <context>/Dockerfile.
+          file: ${{ matrix.file }}
           platforms: linux/arm64
           # Loaded into the runner's local Docker (not pushed) so the next step
           # can run it.
@@ -82,6 +89,9 @@ jobs:
         include:
           - { name: usgs, context: services/usgs }
           - { name: warehouse, context: platform/warehouse }
+          # The code location bundles services and the dbt project, so its
+          # context is the repository root and its Dockerfile is named.
+          - { name: orchestration, context: ., file: platform/orchestration/Dockerfile }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -101,6 +111,8 @@ jobs:
         id: build
         with:
           context: ${{ matrix.context }}
+          # Empty for most rows: then the action uses <context>/Dockerfile.
+          file: ${{ matrix.file }}
           platforms: linux/arm64
           push: true
           provenance: false

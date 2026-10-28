@@ -218,9 +218,26 @@ to run it is in [`platform/warehouse/README.md`](../platform/warehouse/README.md
 Assets, lineage, backfill, declarative retries, native dbt and dlt integration.
 Metastore in Postgres, since the SQLite default does not serve multiple users.
 
-Until Dagster runs, each pipeline run reports success to Healthchecks.io, which
-e-mails the operator when a report is missing
-([ADR-0018](adr/0018-pipeline-heartbeat.md); runbook: *Pipeline heartbeat*).
+**One instance per environment** ([ADR-0026](adr/0026-dagster-one-instance-per-environment.md)),
+in the environment's namespace, with its metadata in a database `dagster` in
+that environment's Postgres, backed up with it. Runs are Kubernetes Jobs in
+the same namespace, so staging never reaches prod.
+
+**One code location for the platform**, the image `lagom-orchestration`
+([`platform/orchestration/`](../platform/orchestration/README.md)). It holds
+each service's assets (`services/<service>/assets/`) and the dbt project,
+whose models dagster-dbt turns into assets downstream of the sources they
+read. Its first content is USGS on DuckLake:
+
+- the job `usgs` every 30 minutes: dlt loads into DuckLake, then `dbt build`
+  runs on the `lake` target;
+- the job `lake_maintenance` once a day: it merges small files, expires
+  snapshots older than 7 days, and deletes the files nothing references.
+
+Until Dagster takes over the alarm, the CronJobs keep running and each run
+reports success to Healthchecks.io, which e-mails the operator when a report
+is missing ([ADR-0018](adr/0018-pipeline-heartbeat.md); runbook: *Pipeline
+heartbeat*).
 
 Airflow and Prefect are excluded on resident RAM.
 
@@ -322,20 +339,35 @@ outside this repository, or a rendered image without a tag or digest (this
 repository's own images need a digest); what it does not check is in
 [`tools/README.md`](../tools/README.md#manifest-policy-check).
 
-**Images.** Two, built by [`images.yml`](../.github/workflows/images.yml) on a
-native arm64 runner: `ghcr.io/filipefantini/lagom-usgs` (the dlt pipeline,
-[`services/usgs/Dockerfile`](../services/usgs/Dockerfile)) and
-`ghcr.io/filipefantini/lagom-warehouse` (`dbt build`,
-[`platform/warehouse/Dockerfile`](../platform/warehouse/Dockerfile)). A pull
-request builds and smoke-tests them without pushing; a push to `main` publishes
-them tagged with the commit SHA, and the digest is printed in the run summary.
-Both are multi-stage (uv exists only in the build stage), pinned by digest at
-the base, run as UID 10001 on a read-only root filesystem, and write only under
-`/tmp`: mount an `emptyDir` there. Measured on the first build (archive PR #27,
-2026-10-17): `lagom-usgs` 206 MiB, `lagom-warehouse` 397 MiB, built in 40 and
-52 s. Both packages are private: an anonymous manifest request to ghcr.io
+**Images.** Three, built by [`images.yml`](../.github/workflows/images.yml) on a
+native arm64 runner:
+
+- `ghcr.io/filipefantini/lagom-usgs`: the dlt pipeline,
+  [`services/usgs/Dockerfile`](../services/usgs/Dockerfile).
+- `ghcr.io/filipefantini/lagom-warehouse`: `dbt build`,
+  [`platform/warehouse/Dockerfile`](../platform/warehouse/Dockerfile).
+- `ghcr.io/filipefantini/lagom-orchestration`: the Dagster code location,
+  [`platform/orchestration/Dockerfile`](../platform/orchestration/Dockerfile).
+  It is built from the repository root.
+
+A pull request builds and smoke-tests them without pushing. A push to `main`
+publishes them tagged with the commit SHA, and the digest is printed in the
+run summary. Each image:
+
+- is multi-stage, with uv only in the build stage;
+- is pinned by digest at the base;
+- runs as UID 10001 on a read-only root filesystem;
+- writes only under `/tmp`, so mount an `emptyDir` there.
+
+Sizes, measured on the first builds: `lagom-usgs` 206 MiB and
+`lagom-warehouse` 397 MiB (archive PR #27, 2026-10-17, built in 40 and 52 s),
+and `lagom-orchestration` 961 MiB (PR #31, 2026-10-28). The orchestration image
+bundles Dagster, dbt, dlt, DuckDB and pyarrow.
+
+The first two packages are private: an anonymous manifest request to ghcr.io
 returns HTTP 403 (checked 2026-10-17; the same request against a public image
-succeeds). Staging's and prod's CronJob `usgs-pipeline` runs them
+succeeds). `lagom-orchestration` is checked the same way once it is
+published. Staging's and prod's CronJob `usgs-pipeline` runs them
 every 30 minutes, dbt starting only if the load exited 0: both are init
 containers, and a `heartbeat` container pings Healthchecks.io only if both
 exited 0 ([ADR-0018](adr/0018-pipeline-heartbeat.md)). It pulls from GHCR with

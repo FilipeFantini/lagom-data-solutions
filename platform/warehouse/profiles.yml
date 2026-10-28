@@ -25,3 +25,33 @@ lagom:
       # One thread: the database is a shared 4 GB node (ADR-0011), and the
       # models are few and small.
       threads: 1
+
+    # The SME stack (ADR-0023, ADR-0026): DuckDB in the dbt process, tables in
+    # DuckLake. LAGOM_LAKE_CATALOG is the DuckLake catalog to attach
+    # ("ducklake:postgres:<libpq string>" in the cluster, a local file in a
+    # test), LAGOM_LAKE_DATA_PATH where its Parquet files rest (the R2 bucket).
+    # LAGOM_LAKE_METADATA_SCHEMA is where the catalog keeps DuckLake's tables;
+    # it must match dlt's (DESTINATION__DUCKLAKE__CREDENTIALS__METADATA_SCHEMA),
+    # and dlt honours it only for a SQL catalog, so a local file uses "main".
+    # The R2 values come from the environment's sealed token; DuckDB wants the
+    # endpoint's host, so the scheme is cut off.
+    lake:
+      type: duckdb
+      path: ":memory:"
+      extensions: [ducklake, httpfs, postgres]
+      secrets:
+        - type: s3
+          key_id: "{{ env_var('LAGOM_R2_ACCESS_KEY_ID') }}"
+          secret: "{{ env_var('LAGOM_R2_SECRET_ACCESS_KEY') }}"
+          endpoint: "{{ env_var('LAGOM_R2_ENDPOINT') | replace('https://', '') }}"
+          region: auto
+          url_style: path
+      attach:
+        - path: "{{ env_var('LAGOM_LAKE_CATALOG') }}"
+          alias: lake
+          options:
+            data_path: "{{ env_var('LAGOM_LAKE_DATA_PATH') }}"
+            metadata_schema: "{{ env_var('LAGOM_LAKE_METADATA_SCHEMA') }}"
+      database: lake
+      schema: main
+      threads: 1

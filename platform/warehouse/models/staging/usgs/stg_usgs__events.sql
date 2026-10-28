@@ -54,7 +54,7 @@ select
     -- Text after the last comma, trimmed: "12 km SSW of Town, Alaska" is
     -- "Alaska". With no comma the pattern matches nothing and the whole place
     -- remains ("Fiji region").
-    nullif(btrim(regexp_replace(properties__place, '^.*,', '')), '')::text as region,
+    nullif(trim(regexp_replace(properties__place, '^.*,', '')), '')::text as region,
     to_timestamp(properties__time / 1000.0) as event_time,
     to_timestamp(properties__updated / 1000.0) as updated_at,
     -- GeoJSON order is [longitude, latitude, depth in km].

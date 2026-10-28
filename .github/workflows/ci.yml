@@ -43,6 +43,18 @@ jobs:
             uv run --project "$project" --locked pytest "$project"
             echo "::endgroup::"
           done
+      # The Dagster code location (ADR-0026). It also type-checks each
+      # service's assets/, which import Dagster and so are excluded from the
+      # service's own mypy run.
+      - name: orchestration
+        run: |
+          set -euo pipefail
+          p=platform/orchestration
+          uv run --project $p --locked ruff format --check $p services/*/assets
+          uv run --project $p --locked ruff check $p services/*/assets
+          # From inside the project, so the assets resolve once, as imported.
+          (cd $p && uv run --locked mypy lagom_orchestration ../../services/*/assets)
+          uv run --project $p --locked pytest $p
 
   secrets:
     name: secret scan
