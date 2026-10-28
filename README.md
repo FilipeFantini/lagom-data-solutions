@@ -27,7 +27,7 @@ flowchart TB
         ing["Ingest<br/>dlt"] --> store[("Store<br/>bronze · silver · gold")] --> dbt["Transform<br/>dbt"]
     end
 
-    site(["getlagom.app<br/>static dashboards"])
+    site(["getlagom.app<br/>dashboards, refreshed each run"])
 
     src --> node
     node --> site
@@ -45,8 +45,10 @@ flowchart TB
 
 Data comes in through ingestion jobs that start, do their work, and exit. It
 is stored in layers (raw, cleaned, modelled) and transformed with dbt.
-Dagster is set to schedule the work from the outside, and the public side
-will be a static site, so visitors never reach the cluster. Argo CD keeps the cluster in sync
+Dagster is set to schedule the work from the outside. After each run the
+dashboards will be rebuilt and published as plain files: the numbers stay fresh,
+the charts are interactive in the browser, and no visitor ever reaches the
+cluster. Argo CD keeps the cluster in sync
 with this repository, so changes arrive through Git, not by hand.
 
 ## The stack
@@ -57,7 +59,7 @@ with this repository, so changes arrive through Git, not by hand.
 | Storage | Postgres today; DuckLake on Cloudflare R2, with Postgres as its catalog, being tested ([ADR-0023](docs/adr/0023-sme-stack-duckdb-on-ducklake.md)) |
 | Transformation | dbt, on Postgres or DuckDB |
 | Orchestration | Dagster |
-| Dashboards | Evidence, published as static pages on getlagom.app |
+| Dashboards | Evidence, rebuilt after each run and published on getlagom.app ([ADR-0023](docs/adr/0023-sme-stack-duckdb-on-ducklake.md)) |
 | Platform | k3s on a single ARM node, Argo CD, Sealed Secrets, CloudNativePG, Tailscale |
 
 Each choice is written down with the alternatives it beat and the trade-offs it
