@@ -5,9 +5,14 @@
 - **Date:** 2026-10-28
 - **Decided by:** the operator, in conversation on 2026-10-28, pending the spike.
 - **Would supersede, when accepted:** [ADR-0008](0008-postgres-for-all-layers.md)
-  (every layer in Postgres) for the warehouse, and in
-  [ADR-0022](0022-platform-as-a-portfolio-of-architectures.md) the tiers, R2's
-  role, the publishing path and Terraform's timing.
+  (every layer in Postgres) for the warehouse;
+  [ADR-0004](0004-table-format.md) (Iceberg, or Delta, by test) for the SME
+  stack, where DuckLake takes the table format's place — Iceberg stays for the
+  big-data stack; in [ADR-0005](0005-duckdb-and-postgres-roles.md), the role it
+  gave DuckDB and Postgres returns, in this form; in
+  [ADR-0020](0020-move-to-the-8-gb-node.md) the move by hand with Terraform
+  waiting; and in [ADR-0022](0022-platform-as-a-portfolio-of-architectures.md)
+  the tiers, R2's role, the publishing path and Terraform's timing.
 
 ## Context and problem
 
@@ -81,7 +86,8 @@ On `lagom-shared-02`, with the USGS pipeline:
    DuckLake's compaction runs as a scheduled job, and the R2 operation count
    stays within the free tier.
 4. **Memory and time,** against the same pipeline on Postgres today: peak memory
-   of each job, `dbt build` duration, query times on gold.
+   of each job — the Evidence build and the Pages deploy included, since they
+   now run in the cluster — `dbt build` duration, query times on gold.
 
 If any of these fails, this ADR is revised, not accepted.
 
@@ -101,6 +107,9 @@ stack keeps its data. The node becomes disposable.
   on the catalog.
 - **One more dependency for the data itself:** R2, beyond Cloudflare's role for
   the site.
+- **Two new secrets in the cluster:** an R2 token scoped to the bucket, and a
+  Cloudflare API token limited to Pages deploys. Both sealed, as every secret
+  here ([ADR-0010](0010-sealed-secrets.md)).
 
 ## Risks, cost, and reversal
 

@@ -46,7 +46,7 @@ Full detail in [`docs/architecture.md`](docs/architecture.md).
 | Transformation | dbt (`dbt-postgres`) |
 | Orchestration | Dagster |
 | Serving | Postgres |
-| Reporting | Evidence (built in CI, zero resident RAM) |
+| Reporting | Evidence (static pages; built by an ephemeral job, nothing resident) |
 
 Every choice is recorded with its alternatives and trade-offs in
 [`docs/adr/`](docs/adr/).

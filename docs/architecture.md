@@ -174,7 +174,9 @@ A table format provides ACID over files, time travel, schema evolution, and real
 `MERGE`.
 
 **Iceberg is the preference; Delta is the fallback. Decided by testing when
-the lakehouse enters** — see [ADR-0004](adr/0004-table-format.md).
+the lakehouse enters** — see [ADR-0004](adr/0004-table-format.md). **Proposed
+change:** for the SME stack, [ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed puts DuckLake in place of Iceberg, with a
+catalog in Postgres; Iceberg stays the table format of the big-data stack.
 
 **Rule for this phase, to avoid overengineering:** no catalog, no optimization,
 no snapshot maintenance. Write and read by path only.
@@ -186,6 +188,8 @@ SQL executes inside the environment's Postgres. The job has no idle cost, but
 the work lands on a resident process that also serves reads — the trade-off
 ADR-0008 accepts, and whose limit is the first lakehouse trigger. Models prefer
 portable SQL, because a later move to DuckDB has to port them.
+
+**Proposed, with the SME stack** ([ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed): `dbt-duckdb` on DuckLake.
 
 **When the lakehouse enters:** DuckDB reads the table format directly from
 object storage, processes with a configured `memory_limit` (spilling to disk
@@ -263,7 +267,7 @@ The public face is static: nothing on the node serves it
 | Tool | Role | RAM on the node | Enters when |
 |---|---|---|---|
 | **Astro** | the site at getlagom.app: pages, copy, the gallery of showcases | 0 (static, Cloudflare Pages) | M4 |
-| **Evidence** | the dashboards: SQL + Markdown, charts built on Apache ECharts, built in CI from Parquet in R2 | 0 (static) | M4 |
+| **Evidence** | the dashboards: SQL + Markdown, charts built on Apache ECharts, built by a Dagster step in the cluster after each run | 0 resident (an ephemeral build job) | M4 |
 | **Streamlit** | interactive apps | 200–250 MB | an app a static page cannot serve |
 | **Grafana** | time series, pipeline health, alerting | 150 MB | something to monitor that Dagster alerts do not cover |
 
@@ -385,7 +389,8 @@ and sees the dashboard — no install, with WAF and rate limiting included.
 
 ### Signed URL
 
-**Requires object storage, so it is unavailable until R2 enters (M3)**
+**Requires object storage, so it is unavailable until R2 enters (M3, if the
+SME-stack spike passes)**
 ([ADR-0008](adr/0008-postgres-for-all-layers.md)); a consumer that needs it is
 itself one of the triggers.
 
@@ -544,7 +549,8 @@ not a peak, since the stats refresh every ~10 s; the request stays until a
 longer run is sampled. dbt's SQL runs inside Postgres while every layer
 lives there ([ADR-0008](adr/0008-postgres-for-all-layers.md)). Sealed Secrets
 declares 32 MB and uses 16 MiB measured ([ADR-0010](adr/0010-sealed-secrets.md)), small enough to leave
-the totals above unchanged at this precision. Evidence runs in CI.
+the totals above unchanged at this precision. The Evidence build is an
+ephemeral job, measured in the SME-stack spike.
 
 **Full design**, adding what enters by trigger:
 

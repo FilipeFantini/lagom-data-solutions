@@ -23,7 +23,7 @@ dbt, Postgres, Dagster.
 | Piece | Enters when |
 |---|---|
 | `staging` namespace | M2 — once there is something to promote |
-| Postgres backup | Postgres holds state no source can rebuild (Dagster's metastore in M3, a non-replayable source in M6), or someone other than the operator relies on the database itself — the site does not: it reads snapshots in R2 — [ADR-0019](adr/0019-postgres-backup-deferred.md); accepted as debt, [architecture.md §12](architecture.md#12-accepted-risks) |
+| Postgres backup | Postgres holds state no source can rebuild (Dagster's metastore in M3, a non-replayable source in M6), or someone other than the operator relies on the database itself — the site does not: it serves pages built after each run — [ADR-0019](adr/0019-postgres-backup-deferred.md); accepted as debt, [architecture.md §12](architecture.md#12-accepted-risks) |
 | Object storage (Cloudflare R2) | the SME-stack spike (M3), as the store of DuckLake's data files ([ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed) |
 | DuckDB and DuckLake (the SME stack) | the spike in M3; the warehouse moves from Postgres when it passes ([ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed; until then [ADR-0008](adr/0008-postgres-for-all-layers.md)) |
 | Second VPS (real environment isolation) | a real client |
@@ -225,7 +225,8 @@ The node that M3 needs, and the orchestration every showcase uses.
 - [ ] Measure the new node's overhead and set its CI ceiling, as ADR-0016 did
 - [ ] **Spike: the SME stack** — the USGS pipeline into DuckLake (Postgres
       catalog, data on R2) with dbt-duckdb; Evidence reading it; compaction of
-      small files; memory and time against Postgres. Accept or revise
+      small files; memory and time against Postgres, including the Evidence
+      build and the Pages deploy. Accept or revise
       ADR-0023 with the numbers
 - [ ] Postgres backup — before Dagster's metastore, whose run history exists
       only on the node. With the SME stack the state to protect is the catalog
@@ -264,6 +265,8 @@ big-data stack ([ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed).
 - [ ] A public dataset larger than the node's memory, on the SME stack
 - [ ] Benchmarks published: rows, gigabytes, time, peak memory — Postgres
       against DuckDB, local disk against R2 — with the method on the page
+- [ ] Lakehouse trigger measures visible: `dbt run` duration and data size —
+      [ADR-0008](adr/0008-postgres-for-all-layers.md)
 
 ## M6 — Streaming
 
