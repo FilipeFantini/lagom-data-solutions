@@ -57,7 +57,9 @@ The plugin's issue
 "does not work with R2", is open. The first report was a configuration error.
 The later ones, about S3-compatible stores rejecting retention deletes, were
 fixed in Barman 3.16.2, which v0.15.1 is well past. Nobody has confirmed R2 end
-to end. So this is accepted for prod only after staging shows, with commands
+to end. The endpoint passed as `AWS_ENDPOINT_URL_S3` is also unverified here.
+If the SDK ignored it, archiving would go to AWS and fail, and step 1 below
+would show it. So this is accepted for prod only after staging shows, with commands
 recorded in the runbook:
 
 1. WAL archiving works: the Cluster reports `ContinuousArchiving` true.

@@ -505,14 +505,15 @@ for k3s's growth over days and the shims of new Pods, which requests do not
 count ([ADR-0024](adr/0024-ci-ceiling-on-the-8-gb-node.md)). It was 2.2 GB on
 the 4 GB node ([ADR-0016](adr/0016-ci-ceiling-2-2-gb.md)), where M3 did not
 fit, hence the move ([ADR-0020](adr/0020-move-to-the-8-gb-node.md)). Today's
-total is 2,078 MiB; M3 with Dagster is about 2,680.
+total is 2,334 MiB; M3 with Dagster is about 2,930.
 
 **How CI enforces it.** [`tools/resource_budget.py`](../tools/resource_budget.py)
 runs on every pull request ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)).
 It renders every Application the way Argo CD does and fails if any container
 lacks a memory request, a memory limit, or a CPU request (for a CloudNativePG
 `Cluster`, whose Pods the operator creates, its `spec.resources` and
-`spec.instances` stand in for the Pod spec), or if the total
+`spec.instances` stand in for the Pod spec, plus the Barman Cloud sidecar
+declared on the `ObjectStore` it names), or if the total
 exceeds the ceiling above, which it reads from this file. The total is resident
 requests, plus **every ephemeral job at once**, plus an **allowance for
 components k3s installs outside Git**.

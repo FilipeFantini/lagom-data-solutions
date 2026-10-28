@@ -19,7 +19,7 @@ spec:
   configuration:
     destinationPath: s3://lagom-staging-backups/
     # The token is scoped to this bucket only, with object read and write
-    # (runbook, Backup and restore). Sealed in r2-backups-sealed.yaml.
+    # (ADR-0025). Sealed in r2-backups-sealed.yaml.
     s3Credentials:
       accessKeyId:
         name: r2-backups
