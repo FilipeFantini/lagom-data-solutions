@@ -60,6 +60,14 @@ runLauncher:
       # The image is pinned by digest, so a cached copy is the right copy.
       imagePullPolicy: IfNotPresent
       runK8sConfig:
+        # The code location's container securityContext does not reach runs:
+        # the chart passes only the Pod-level one. It is set here for every
+        # run's container (found in review of PR #32).
+        containerConfig:
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
         jobSpecConfig:
           # No retry from Kubernetes: Dagster decides, and a failed run waits
           # for the next schedule. A finished Job and its Pod go after an hour,
@@ -77,17 +85,22 @@ dagster-user-deployments:
     - name: lagom
       image:
         repository: ghcr.io/filipefantini/lagom-orchestration
-        # Pinned by digest (ADR-0015): built from main at 7b964ae.
-        tag: "7b964aee3f301cdb07b4b0609f474310eaecc615@sha256:a468f488709d11f98b7c0b38c4d5559ff60ad63e4543b969909aa69ed6703237"
+        # Pinned by digest (ADR-0015): built from main at 89b0e41 (PR #33,
+        # the image without an ENTRYPOINT).
+        tag: "89b0e410c9bb4d578f8ace23c3258c235ff17f0b@sha256:57ba44791aa4d68db8ca6baf6220daa1c0fa21d35b2007552fbc38de81478f4a"
         pullPolicy: IfNotPresent
       dagsterApiGrpcArgs: ["-m", "lagom_orchestration.definitions"]
       port: 3030
-      # Runs inherit this deployment's image, environment, resources and
-      # security settings, in this namespace.
+      # Runs inherit this deployment's image, environment, resources, volumes
+      # and Pod security context, in this namespace. The container security
+      # context is set for runs in runLauncher above.
       includeConfigInLaunchedRuns:
         enabled: true
       # The code server idles at ~215 MiB; a run with dlt and dbt peaks at
-      # ~250-300 MiB. One figure serves both, since runs inherit it.
+      # ~250-300 MiB. One figure serves both, since runs inherit it. The
+      # run's request is also written on the Application
+      # (apps/dagster-staging.yaml, lagom.dev/ephemeral-memory-request) for
+      # the budget check: change both together.
       resources:
         requests: {cpu: 50m, memory: 384Mi}
         limits: {memory: 1Gi}
