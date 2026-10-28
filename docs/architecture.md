@@ -246,8 +246,8 @@ pooler are declared the same way when their triggers arrive.
 Barman Cloud plugin, running beside the operator, archives every WAL segment
 and takes a daily base backup into an R2 bucket per environment. Each Cluster
 names an `ObjectStore` in `spec.plugins`, and the plugin adds a sidecar to its
-Pod. Staging first (`lagom-staging-backups`). Prod follows once a restore in
-staging has passed. cert-manager issues the TLS certificates the plugin and
+Pod. Staging and prod each have their own bucket; procedures are in the
+runbook's *Backup and restore*. cert-manager issues the TLS certificates the plugin and
 the operator use.
 
 **Credentials.** The prod `Cluster` ([`platform/infra/postgres-prod/`](../platform/infra/postgres-prod/cluster.yaml))
@@ -505,7 +505,7 @@ for k3s's growth over days and the shims of new Pods, which requests do not
 count ([ADR-0024](adr/0024-ci-ceiling-on-the-8-gb-node.md)). It was 2.2 GB on
 the 4 GB node ([ADR-0016](adr/0016-ci-ceiling-2-2-gb.md)), where M3 did not
 fit, hence the move ([ADR-0020](adr/0020-move-to-the-8-gb-node.md)). Today's
-total is 2,334 MiB; M3 with Dagster is about 2,930.
+total is 2,398 MiB; M3 with Dagster is about 3,000.
 
 **How CI enforces it.** [`tools/resource_budget.py`](../tools/resource_budget.py)
 runs on every pull request ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)).
@@ -532,10 +532,10 @@ adds that 70 MiB request as its allowance for components outside Git.
 | kube-system (CoreDNS, metrics-server) and local-path | ~215 MB | requests: CoreDNS 70, metrics-server 80, local-path 64 MiB; Traefik disabled ([ADR-0021](adr/0021-k3s-packaged-components-under-git.md)). Measured 2026-10-27: 71, 73 and 47 MiB |
 | Argo CD (no Dex) | 608 MB | set from measurement with three Applications: application-controller 290–465 MiB before `GOMEMLIMIT`, 190–285 MiB after (request 384, limit 640, `GOMEMLIMIT` 540MiB), repo-server ~105, server ~37, redis ~10 ([ADR-0009](adr/0009-argocd-bootstrap-and-self-management.md)) |
 | CloudNativePG operator | 64 MB | measured 24 MiB with no Cluster, 31 MiB reconciling one (request 64, limit 192, `GOMEMLIMIT` 150MiB) ([ADR-0012](adr/0012-cloudnative-pg.md)) |
-| Backup: Barman Cloud plugin and cert-manager | 192 MB | plugin 32, cert-manager controller 64, cainjector 64, webhook 32; starting figures, each with `GOMEMLIMIT`, to be measured ([ADR-0025](adr/0025-postgres-backup-barman-cloud-to-r2.md)). Each backed-up Postgres instance adds a 64 MiB sidecar, counted with its Cluster |
-| Postgres (prod `Cluster`, 1 instance) | 300 MB | request 300 MiB, limit 512 MiB; `shared_buffers` 96MB, `max_connections` 25, `work_mem` 4MB, `maintenance_work_mem` 32MB, `effective_cache_size` 256MB, instance manager `GOMEMLIMIT` 96MiB. Measured idle on 2026-10-16: pod working set 47 MiB, cgroup 55 MiB (25 anonymous, 25 page cache), instance manager ~62 MiB RSS including shared pages. The request is kept for dbt load, measured in M2. Counted by the CI check, which reads the `Cluster` object because the operator creates its Pods ([`platform/infra/postgres-prod/`](../platform/infra/postgres-prod/cluster.yaml)) |
+| Backup: Barman Cloud plugin and cert-manager | 192 MB | plugin 32, cert-manager controller 64, cainjector 64, webhook 32; each with `GOMEMLIMIT`; measured idle on 2026-10-28: 19, 34, 31 and 17 MiB ([ADR-0025](adr/0025-postgres-backup-barman-cloud-to-r2.md)). Each backed-up Postgres instance adds a 64 MiB sidecar (18 MiB measured during a base backup), counted with its Cluster |
+| Postgres (prod `Cluster`, 1 instance) | 364 MB | 300 for Postgres plus 64 for the backup sidecar. Postgres: request 300 MiB, limit 512 MiB; `shared_buffers` 96MB, `max_connections` 25, `work_mem` 4MB, `maintenance_work_mem` 32MB, `effective_cache_size` 256MB, instance manager `GOMEMLIMIT` 96MiB. Measured idle on 2026-10-16: pod working set 47 MiB, cgroup 55 MiB (25 anonymous, 25 page cache), instance manager ~62 MiB RSS including shared pages. The request is kept for dbt load, measured in M2. Counted by the CI check, which reads the `Cluster` object because the operator creates its Pods ([`platform/infra/postgres-prod/`](../platform/infra/postgres-prod/cluster.yaml)) |
 | Dagster | 600 MB | measured in a spike: ~550 MiB resident with real libraries ([ADR-0011](adr/0011-memory-viability-on-4gb.md)) |
-| **Core requests** | **~1.98 GB** | |
+| **Core requests** | **~2.04 GB** | |
 | **Left within the ceiling for ephemeral jobs** | **~3.5 GB** | |
 
 Staging adds ~364 MB for its own Postgres
@@ -1311,6 +1311,127 @@ above. No Job at all means the CronJob is not scheduling or the node is down;
 three `heartbeat attempt … failed` lines means the run worked and the ping did
 not.
 
+### Backup and restore (M3)
+
+Each environment's Postgres is backed up to its own R2 bucket by the Barman
+Cloud plugin ([ADR-0025](adr/0025-postgres-backup-barman-cloud-to-r2.md)):
+
+| Environment | Bucket | Retention |
+|---|---|---|
+| staging | `lagom-staging-backups` | 7 days |
+| prod | `lagom-prod-backups` | 30 days |
+
+Two kinds of copy land there:
+
+- **WAL**, continuously. Each write-ahead log segment is uploaded as soon as
+  Postgres closes it, which happens at the latest every 5 minutes.
+- **A base backup** every day at 03:00 UTC.
+
+A restore replays WAL on top of a base backup. It can reach any moment up to
+the last archived segment, so at most about **5 minutes of writes** are lost
+(the RPO).
+
+**Set it up for an environment** (exercised in staging, 2026-10-28):
+
+1. In the Cloudflare console, R2: create the bucket `lagom-<env>-backups`
+   with *Location hint: Western Europe*. Then create an API token with
+   *Object Read & Write* on that bucket only, TTL *Forever*. Save the
+   access key, the secret and the S3 endpoint (no bucket in it) in 1Password
+   as `R2 Storage lagom-<env>-backups`.
+2. Seal it. Each prompt waits for a value pasted from 1Password, and nothing
+   is echoed. Expected lengths are 32, 64 and 65:
+
+   ```bash
+   printf 'Access Key ID: ' && read -rs KEY_ID && echo && printf 'Secret Access Key: ' && read -rs SECRET && echo && printf 'S3 endpoint: ' && read -rs ENDPOINT && echo && echo "lengths: ${#KEY_ID} ${#SECRET} ${#ENDPOINT}" && kubectl --context <node-name> create secret generic r2-backups -n <env> --from-literal=ACCESS_KEY_ID="$KEY_ID" --from-literal=ACCESS_SECRET_KEY="$SECRET" --from-literal=ENDPOINT="$ENDPOINT" --dry-run=client -o yaml | kubeseal --context <node-name> --format yaml > platform/infra/postgres-<env>/r2-backups-sealed.yaml; unset KEY_ID SECRET ENDPOINT
+   ```
+
+3. Add the `ObjectStore`, the `ScheduledBackup` and `spec.plugins` to the
+   environment's directory, then merge. On a running Cluster the operator
+   restarts the Postgres Pod once to add the sidecar. That took a few seconds
+   in staging.
+
+**Check it works:**
+
+```bash
+kubectl --context <node-name> -n <env> get cluster postgres -o jsonpath='{range .status.conditions[*]}{.type}={.status} {.message}{"\n"}{end}'
+kubectl --context <node-name> -n <env> get backups
+kubectl --context <node-name> -n <env> logs postgres-1 -c plugin-barman-cloud --since=10m | grep -E 'Archived WAL file|Backup completed'
+```
+
+`ContinuousArchiving=True` and `LastBackupSucceeded=True` are the pass. If
+archiving fails, Postgres keeps the WAL it could not ship on its volume, so
+the volume grows: read the sidecar's log.
+
+**The first backup after enabling can fail.** The `ScheduledBackup` takes one
+backup at once (`immediate: true`). On a Cluster that is still restarting to
+add the plugin, that backup fails with `cannot proceed with the backup as the
+cluster has no plugin configured`. This happened in staging on 2026-10-28.
+Take one by hand once the Pod is back:
+
+```bash
+N=manual-$(date -u +%Y%m%d%H%M); kubectl --context <node-name> -n <env> apply -f - <<YAML && kubectl --context <node-name> -n <env> wait backup/$N --for=jsonpath='{.status.phase}'=completed --timeout=600s
+apiVersion: postgresql.cnpg.io/v1
+kind: Backup
+metadata:
+  name: $N
+spec:
+  cluster:
+    name: postgres
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+YAML
+```
+
+The heredoc is unquoted so the shell fills in `$N`. Nothing else in it
+starts with `$`.
+
+**Test a restore** into a temporary Cluster in the same namespace. It reads
+the bucket and archives nothing of its own. Its memory request is small so it
+fits staging's quota. Then compare the row counts and delete it:
+
+```bash
+kubectl --context <node-name> -n <env> apply -f - <<'YAML' && kubectl --context <node-name> -n <env> wait cluster/restore-test --for=condition=Ready --timeout=900s
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: restore-test
+spec:
+  instances: 1
+  imageName: <the imageName of the environment's Cluster>
+  storage: {size: 5Gi, storageClass: local-path}
+  resources:
+    requests: {cpu: 10m, memory: 128Mi}
+    limits: {memory: 512Mi}
+  bootstrap:
+    recovery: {source: origin, database: lagom, owner: lagom}
+  externalClusters:
+    - name: origin
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters: {barmanObjectName: r2-backups, serverName: postgres}
+YAML
+for c in postgres restore-test; do echo "$c | $(kubectl --context <node-name> -n <env> exec $c-1 -c postgres -- psql -d lagom -At -F' | ' -c "select (select count(*) from bronze.usgs_events), (select count(*) from silver.stg_usgs__events), (select count(*) from gold.fct_earthquakes)")"; done
+kubectl --context <node-name> -n <env> delete cluster restore-test
+```
+
+Result in staging on 2026-10-28: ready 68 s after creation. The copy held
+every row up to the last archived WAL (14:28 UTC). The 9 rows a pipeline run
+wrote at 14:30, in a segment not yet closed, were missing, as the RPO above
+predicts. Deleting the Cluster deletes its volume: local-path released it
+within two minutes.
+
+**Retention** is enforced by the sidecar every 30 minutes. Check it after the
+first week. An expired backup must be gone from `kubectl get backups` and from
+the bucket, with no `BadDigest` or `DeleteObjects` error in the sidecar's log:
+
+```bash
+kubectl --context <node-name> -n <env> logs postgres-1 -c plugin-barman-cloud --since=24h | grep -iE 'retention|delete|error'
+```
+
+**Memory measured** on 2026-10-28 is in §11: the sidecar used 18 Mi during a
+base backup.
+
 ### Disaster recovery
 
 Used when the node is lost, or when the platform moves to a new node. With no
@@ -1460,11 +1581,10 @@ name it.
 
 ### Sections to fill as the platform is built
 
-- **Backup and restore** — what is backed up, where, how often, and the
-  **measured** restore procedure. (at the backup trigger,
-  [ADR-0019](adr/0019-postgres-backup-deferred.md))
-- **Disaster recovery from a backup** — from Git plus the latest backup, once
-  one exists; the rebuild without one is *Disaster recovery* above.
+- **Disaster recovery from a backup** — rebuilding the node, then
+  bootstrapping each Cluster from its bucket instead of `initdb`. The restore
+  itself is exercised in *Backup and restore* above. A full rebuild that
+  uses it is not exercised yet.
 - **Secret rotation** — how to rotate a source credential and a database
   password. (M3, when a credential is first rotated: the drill rotated
   nothing)

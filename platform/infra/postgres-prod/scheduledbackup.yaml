@@ -1,0 +1,21 @@
+# A base backup of prod's Postgres every day at 03:00 UTC, through the
+# Barman Cloud plugin into the ObjectStore r2-backups (ADR-0025). WAL is
+# archived continuously in between, so a restore can reach any moment.
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: daily
+spec:
+  # Six fields: seconds first (CloudNativePG's cron format).
+  schedule: "0 0 3 * * *"
+  # Take one now as well, so a new or rebuilt cluster is covered from the
+  # start rather than from the next 03:00.
+  immediate: true
+  # Backup objects are owned by this ScheduledBackup, so they are listed with
+  # it and deleted with it. The files in the bucket follow retentionPolicy.
+  backupOwnerReference: self
+  cluster:
+    name: postgres
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
