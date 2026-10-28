@@ -300,7 +300,7 @@ Three, decided in [ADR-0007](adr/0007-three-environments.md).
 | Environment | Where | What runs there |
 |---|---|---|
 | `dev` | code on the operator's machine, data in staging | dbt and dlt run from the machine's `uv` environments against the `lagom_dev` database in staging's Postgres, through `kubectl port-forward` over the tailnet; unit tests need no database; manifests are checked with a server-side dry run ([ADR-0014](adr/0014-develop-against-staging.md)); agents use `kubectl diff -n <namespace> -f`, since `apply` is denied to them ([CONTRIBUTING](../CONTRIBUTING.md#workflow)) |
-| `staging` | namespace on the node | own Postgres `Cluster` mirroring prod's configuration, holding two databases: `lagom` for staging's pipeline and `lagom_dev` for the developer, who cannot connect to `lagom`; own secrets; a ResourceQuota (768Mi of memory requests, 1536Mi of limits, 10 Pods) and a LimitRange ([`platform/infra/postgres-staging/`](../platform/infra/postgres-staging/)); the pipeline as one CronJob, `usgs-pipeline` ([`cronjob-usgs.yaml`](../platform/infra/postgres-staging/cronjob-usgs.yaml)): dlt, then dbt, as init containers, then a heartbeat ping to Healthchecks.io ([ADR-0018](adr/0018-pipeline-heartbeat.md)), applied by Argo CD from `main` and pinned to staging's image digests ([ADR-0015](adr/0015-images-on-ghcr.md)). **No Dagster** — two orchestrators exceed the ceiling |
+| `staging` | namespace on the node | own Postgres `Cluster` mirroring prod's configuration, holding two databases: `lagom` for staging's pipeline and `lagom_dev` for the developer, who cannot connect to `lagom`; own secrets; a ResourceQuota (768Mi of memory requests, 1536Mi of limits, 10 Pods) and a LimitRange ([`platform/infra/postgres-staging/`](../platform/infra/postgres-staging/)); the pipeline as one CronJob, `usgs-pipeline` ([`cronjob-usgs.yaml`](../platform/infra/postgres-staging/cronjob-usgs.yaml)): dlt, then dbt, as init containers, then a heartbeat ping to Healthchecks.io ([ADR-0018](adr/0018-pipeline-heartbeat.md)), applied by Argo CD from `main` and pinned to staging's image digests ([ADR-0015](adr/0015-images-on-ghcr.md)). **No Dagster** ([ADR-0007](adr/0007-three-environments.md)); on the 4 GB node a second orchestrator exceeded the ceiling, and on the 8 GB node that reason is to be revisited when Dagster enters |
 | `prod` | namespace on the node | the full stack |
 
 **Promotion** is by image digest: staging and prod each pin their own, so a new
@@ -786,8 +786,10 @@ and run `sudo systemctl daemon-reload && sudo systemctl restart k3s`.
 The figure is 900MiB on the 8 GB node too. `GOMEMLIMIT` bounds k3s's own heap,
 which grows with the objects in the cluster, not with the node's RAM; the
 cluster moved unchanged, so the figure that stopped GC thrash on 4 GB still
-fits. It is revisited with the new node's overhead measurement, by the check
-below.
+fits. Measured on 2026-10-28, two hours after k3s started: 115 garbage
+collections since start, no thrash
+([ADR-0024](adr/0024-ci-ceiling-on-the-8-gb-node.md)); re-checked with the
+three-day measurement, by the check below.
 
 **Check the limit still has headroom** whenever the cluster gains a component.
 If collections run several times per second and the node's CPU is near 100%
