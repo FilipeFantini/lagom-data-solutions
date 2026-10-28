@@ -1,0 +1,13 @@
+# The database Dagster keeps its runs, events and schedules in (ADR-0026),
+# owned by the role `dagster` (cluster.yaml). It is backed up with the rest of
+# the Cluster (ADR-0025).
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: dagster
+spec:
+  name: dagster
+  owner: dagster
+  cluster:
+    name: postgres
+  ensure: present

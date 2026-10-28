@@ -1,28 +1,31 @@
 # What keeps staging from starving prod: the kubelet and API server refuse
 # what exceeds these, rather than relying on good intentions (ADR-0007).
 #
-# Arithmetic, in memory (the Postgres Pod and its initdb Job Pod each carry
-# request 300Mi / limit 512Mi, and the Job finishes before the Pod starts;
-# finished Pods stop counting against a quota):
-#   requests  Postgres 300 + 468 left for the dlt and dbt jobs coming next = 768Mi
-#   limits    Postgres 512 + 1024 left for those jobs                      = 1536Mi
-# The 768Mi of requests is what staging may reserve; the budget check counts
-# only the Postgres Cluster (architecture.md section 11), and the quota is what
-# keeps the jobs inside the room the ceiling leaves for them.
+# Arithmetic, in memory, request / limit in Mi (finished Pods stop counting):
+#   Postgres Pod, with the backup sidecar (ADR-0025)    364 /  768
+#   Dagster webserver, daemon, code location (ADR-0026) 832 / 1920
+#   one Dagster run, inheriting the code location's      384 / 1024
+#   the CronJob usgs-pipeline, while it still runs       256 /  512
+#                                                       ----   ----
+#                                                       1836 / 4224
+# rounded up to 2048 / 4608, about 200 Mi of room for a restore test or a
+# manual run. The budget check counts the same workloads against the node's
+# ceiling (architecture.md section 11); the quota keeps staging inside them.
 apiVersion: v1
 kind: ResourceQuota
 metadata:
   name: staging
 spec:
   hard:
-    requests.memory: 768Mi
-    limits.memory: 1536Mi
+    requests.memory: 2048Mi
+    limits.memory: 4608Mi
     requests.cpu: 500m
     pods: "10"
 ---
 # A quota on requests and limits rejects any Pod that does not declare them.
 # These defaults fill in for a container that says nothing, and `max` stops one
-# container from taking more than a single Postgres Pod's limit.
+# container from taking more than 1 GiB: the largest is a Dagster run, which
+# loads with dlt and builds with dbt-duckdb in one process (ADR-0026).
 apiVersion: v1
 kind: LimitRange
 metadata:
@@ -36,4 +39,4 @@ spec:
       default:
         memory: 256Mi
       max:
-        memory: 512Mi
+        memory: 1Gi
