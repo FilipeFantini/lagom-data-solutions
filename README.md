@@ -6,16 +6,16 @@ minimal infrastructure.
 **The problem.** Most organisations do not have big data. Their data fits on
 one machine, often in its memory. Yet the default answer is a stack sized for
 volumes they will never reach: distributed engines, warehouses billed per
-query, and a dozen resident services to operate. The cost and the
+query, and many resident services to operate. The cost and the
 operational weight come from the tools, not from the data.
 
 **What this project does.** It puts together open-source tools that each do
 one job with little resident memory: ingestion, transformation,
 orchestration, GitOps delivery and publishing. The platform runs on a single
 small node and grows by composition: a new source is one more pipeline on the
-same backbone. Each architecture is shown with its real numbers (rows, run
-time, memory), so the claim "you do not need a big-data stack" can be
-checked, not just believed. A big-data stack enters later, as the comparison
+same backbone. Each architecture is measured (rows, run time, memory) and
+will be shown with those numbers on getlagom.app (M4), so the claim "you do
+not need a big-data stack" can be checked, not just believed. A big-data stack enters later, as the comparison
 that shows where the small one stops
 ([ADR-0023](docs/adr/0023-sme-stack-duckdb-on-ducklake.md), proposed).
 
@@ -30,8 +30,9 @@ system:** every choice is recorded with its alternatives and trade-offs.
 
 > **Status:** M3 in progress. One pipeline (USGS earthquakes: dlt, then dbt)
 > runs every 30 minutes in staging and prod on a single 8 GB node; the
-> platform was rebuilt on it from Git in 20 minutes once the server existed, as a
-> disaster-recovery drill. Next: Dagster and the SME-stack spike. See
+> platform was rebuilt on it in 20 minutes once the server existed, as a
+> disaster-recovery drill: everything from Git, the sealing key from its
+> backup, and the last 30 days of data re-loaded from the source. Next: Dagster and the SME-stack spike. See
 > [`docs/roadmap.md`](docs/roadmap.md) for what exists and what is
 > deliberately absent.
 
