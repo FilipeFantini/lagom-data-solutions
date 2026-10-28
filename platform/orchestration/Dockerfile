@@ -3,7 +3,8 @@
 # because it bundles directories from services/ and platform/:
 #   docker build -f platform/orchestration/Dockerfile .
 # The same image runs the code server (`dagster api grpc`, set by the Helm
-# chart) and every run Pod the run launcher starts.
+# chart) and every run Pod the run launcher starts (`dagster api
+# execute_run`). Both pass the whole command.
 
 FROM python:3.13-slim-trixie@sha256:70729b46c69b4f1e97c4822c1af3df53a1476cf5ddc6c087c0c10bc3a5678c2f AS base
 
@@ -56,4 +57,7 @@ RUN LAGOM_LAKE_CATALOG=ducklake:parse.ducklake LAGOM_LAKE_DATA_PATH=parse/ \
     && rm -rf /tmp/dbt-logs
 LABEL org.opencontainers.image.source="https://github.com/FilipeFantini/lagom-data-solutions"
 USER 10001:10001
-ENTRYPOINT ["dagster"]
+# No ENTRYPOINT: the Helm chart starts the code server, and the run launcher
+# each run, with a full command that begins with `dagster`. An entrypoint of
+# `dagster` would turn that into `dagster dagster ...` (found in review of
+# PR #32).

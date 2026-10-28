@@ -42,7 +42,12 @@ jobs:
           - { name: warehouse, context: platform/warehouse }
           # The code location bundles services and the dbt project, so its
           # context is the repository root and its Dockerfile is named.
-          - { name: orchestration, context: ., file: platform/orchestration/Dockerfile }
+          # It has no entrypoint (the chart passes the whole command), so its
+          # smoke test loads the definitions, as the code server does.
+          - name: orchestration
+            context: .
+            file: platform/orchestration/Dockerfile
+            smoke: python -c 'import lagom_orchestration.definitions'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -61,16 +66,22 @@ jobs:
           tags: lagom-${{ matrix.name }}:ci
       # What this proves: the image starts, runs as the numeric UID, and
       # starts on a read-only root filesystem with only /tmp writable, the way
-      # the CronJob will run it. `--help` is the entrypoint's own help: it
-      # imports the whole dependency set but opens no connection. It does not
-      # prove a load or a build: that needs a database.
+      # the cluster runs it. By default it runs the entrypoint's own `--help`,
+      # which imports the whole dependency set but opens no connection; a row
+      # with `smoke` runs that command instead. It does not prove a load or a
+      # build: that needs a database.
       - name: Smoke test and size
         env:
           IMAGE: lagom-${{ matrix.name }}:ci
+          SMOKE: ${{ matrix.smoke }}
         run: |
           set -euo pipefail
           test "$(docker run --rm --entrypoint id "$IMAGE" -u)" = "10001"
-          docker run --rm --read-only --tmpfs /tmp "$IMAGE" --help
+          if [ -n "$SMOKE" ]; then
+            docker run --rm --read-only --tmpfs /tmp --entrypoint sh "$IMAGE" -c "$SMOKE"
+          else
+            docker run --rm --read-only --tmpfs /tmp "$IMAGE" --help
+          fi
           size="$(docker image inspect --format '{{.Size}}' "$IMAGE")"
           echo "$IMAGE: $((size / 1024 / 1024)) MiB" | tee -a "$GITHUB_STEP_SUMMARY"
 
@@ -91,7 +102,12 @@ jobs:
           - { name: warehouse, context: platform/warehouse }
           # The code location bundles services and the dbt project, so its
           # context is the repository root and its Dockerfile is named.
-          - { name: orchestration, context: ., file: platform/orchestration/Dockerfile }
+          # It has no entrypoint (the chart passes the whole command), so its
+          # smoke test loads the definitions, as the code server does.
+          - name: orchestration
+            context: .
+            file: platform/orchestration/Dockerfile
+            smoke: python -c 'import lagom_orchestration.definitions'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
