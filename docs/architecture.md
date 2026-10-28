@@ -47,11 +47,10 @@ Postgres — bronze / silver / gold schemas
 Access channels
 ```
 
-**The lakehouse is a showcase, not the backbone.** The small-data showcase keeps
-every layer in Postgres ([ADR-0008](adr/0008-postgres-for-all-layers.md)). Object
-storage enters in M4 as Cloudflare R2, only as the bridge that carries Parquet
-exports to the site; an open table format and DuckDB enter in M5, as the
-medium-data showcase ([ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md)).
+**Proposed: the SME stack** ([ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed). DuckDB as the engine, DuckLake as the
+table format, Postgres as its catalog, the data files on Cloudflare R2. It
+replaces the Postgres warehouse only after a spike in M3 passes; until then
+every layer lives in Postgres ([ADR-0008](adr/0008-postgres-for-all-layers.md)).
 
 Dagster orchestrates from the outside: it triggers jobs and records state,
 lineage, and retries. It is not a step in the flow because data does not pass
@@ -66,8 +65,8 @@ through it.
 | `getlagom.app` domain, registered and served by Cloudflare | public entry via Cloudflare (M4) |
 
 Cost: EUR 7.37/month for the node, as shown in the Hetzner Console on
-2026-10-12 ([ADR-0002](adr/0002-single-node-k3s-hetzner.md)). Object storage (R2) enters in M4 on its
-free tier ([ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md)); the prices checked earlier are in ADR-0008.
+2026-10-12 ([ADR-0002](adr/0002-single-node-k3s-hetzner.md)). Object storage (R2) enters with the SME-stack
+spike in M3, on its free tier ([ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed); the prices checked earlier are in ADR-0008.
 
 **Outside the cluster, principle 3 does not hold yet.** The server, its
 firewall, the Tailscale ACL, and the Healthchecks.io checks are created by
@@ -199,7 +198,7 @@ consumption). Each layer's guaranteed schema is a contract — see
 **The project** is `platform/warehouse/`. For USGS, silver is
 `stg_usgs__events` (the latest revision of each event, typed, times in UTC) and
 gold is `fct_earthquakes` (earthquakes only, with magnitude and depth classes —
-the small-data showcase's main table) and `agg_earthquakes_daily_region`. Both gold models have an
+the USGS showcase's main table) and `agg_earthquakes_daily_region`. Both gold models have an
 enforced contract. `dbt build` runs the tests with the models: keys, ranges and
 accepted values; reconciliation of row counts between the layers
 (`tests/reconcile_*.sql`); and unit tests of the dedup, the region parsing and
@@ -268,10 +267,10 @@ The public face is static: nothing on the node serves it
 | **Streamlit** | interactive apps | 200–250 MB | an app a static page cannot serve |
 | **Grafana** | time series, pipeline health, alerting | 150 MB | something to monitor that Dagster alerts do not cover |
 
-How a dashboard is published: a Dagster asset writes the showcase's published
-tables to Cloudflare R2 as Parquet, an outbound connection; GitHub Actions
-builds Evidence from there and deploys to Cloudflare Pages. CI never reaches
-Postgres, and a visitor never reaches the cluster.
+How a dashboard is published: a Dagster step after each run builds Evidence in
+the cluster and deploys the static pages to Cloudflare Pages, an outbound
+connection, so the site follows the data ([ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed). A visitor never reaches the
+cluster.
 
 Evidence is MIT-licensed with no per-seat cost. It is built for reviewed
 reports, not ad-hoc exploration. Its npm releases paused between February and
@@ -386,7 +385,7 @@ and sees the dashboard — no install, with WAF and rate limiting included.
 
 ### Signed URL
 
-**Requires object storage, so it is unavailable until R2 enters (M4)**
+**Requires object storage, so it is unavailable until R2 enters (M3)**
 ([ADR-0008](adr/0008-postgres-for-all-layers.md)); a consumer that needs it is
 itself one of the triggers.
 

@@ -6,6 +6,8 @@ deliberately absent.
 **Execution rule:** walking skeleton before any data source. Make the whole loop
 work with the minimum, then thicken each piece.
 
+**Two tiers** ([ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed): the **SME stack** — DuckDB on DuckLake, Postgres
+as its catalog, data on R2 — and, later, a big-data stack for comparison.
 **The platform is a portfolio of data architectures** ([ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md)): each
 *showcase* is one architecture end to end on the shared backbone, published as
 static pages and dashboards on getlagom.app. A component enters because a
@@ -22,10 +24,10 @@ dbt, Postgres, Dagster.
 |---|---|
 | `staging` namespace | M2 — once there is something to promote |
 | Postgres backup | Postgres holds state no source can rebuild (Dagster's metastore in M3, a non-replayable source in M6), or someone other than the operator relies on the database itself — the site does not: it reads snapshots in R2 — [ADR-0019](adr/0019-postgres-backup-deferred.md); accepted as debt, [architecture.md §12](architecture.md#12-accepted-risks) |
-| Object storage (Cloudflare R2) | M4, as the bridge from the cluster to the site — [ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md) |
-| Open table format, DuckDB | the medium-data showcase (M5). Postgres stays the store of the small-data showcase — [ADR-0008](adr/0008-postgres-for-all-layers.md) |
+| Object storage (Cloudflare R2) | the SME-stack spike (M3), as the store of DuckLake's data files ([ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed) |
+| DuckDB and DuckLake (the SME stack) | the spike in M3; the warehouse moves from Postgres when it passes ([ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed; until then [ADR-0008](adr/0008-postgres-for-all-layers.md)) |
 | Second VPS (real environment isolation) | a real client |
-| Terraform for resources outside the cluster (Hetzner server and firewall, Tailscale ACL, Cloudflare DNS, R2 and Pages) | the next node built or rebuilt after the move to the 8 GB node, which is done by hand on purpose to test the runbook ([ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md)). An ADR at entry settles the state backend, which resources Terraform owns, and the hand-off to Argo CD |
+| Terraform for resources outside the cluster (Hetzner server and firewall, Tailscale ACL, Cloudflare DNS, R2 and Pages) | M3, with the move to `lagom-shared-02`, which is imported rather than recreated ([ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed). An ADR at entry settles the state backend (HCP Terraform's free plan is the candidate), which resources Terraform owns, and the hand-off to Argo CD |
 | Evidence | M4 — the dashboard gallery on getlagom.app ([ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md)) |
 | Cloudflare Access (login) | the first content that must not be public. The site and its showcases are public data |
 | NATS | second consumer of the same stream, or a replay requirement |
@@ -36,7 +38,7 @@ dbt, Postgres, Dagster.
 | PostgREST | first API requirement |
 | Metabase, Superset or Lightdash | a client needs ad-hoc, self-service exploration — behind login |
 | 8 GB node | **decided 2026-10-27** for M3 ([ADR-0020](adr/0020-move-to-the-8-gb-node.md)); obtained 2026-10-28 as a new node in another location, `lagom-shared-02` — the migration is M3's first item |
-| Heavier market stacks (Airflow, Spark or Trino with Iceberg, Superset) | after M6, each as a showcase of its own on infrastructure sized for it, with its own ADR ([ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md)) |
+| Big-data stack (Apache Iceberg, Spark or Trino, Airflow) | later, as the comparison that shows where the SME stack stops; infrastructure sized for it and its own ADR ([ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed) |
 | In-cluster policy engine (Kyverno, Gatekeeper) | a second writer to the cluster besides Argo CD — [ADR-0013](adr/0013-agent-driven-development-guardrails.md) |
 | Automated staging digest bump (bot commit after a build) | manual staging bumps become routine, and the bot meets [ADR-0013](adr/0013-agent-driven-development-guardrails.md) rule 3 for infrastructure manifests — [ADR-0015](adr/0015-images-on-ghcr.md) |
 | Run jobs without an own image (official `uv` image, clone at run time) | GitHub announces billing for Container registry storage or bandwidth — [ADR-0015](adr/0015-images-on-ghcr.md) |
@@ -213,15 +215,21 @@ mechanism and destination are still chosen then, measured on the node
 
 The node that M3 needs, and the orchestration every showcase uses.
 
-- [ ] **Move to `lagom-shared-02`** (8 GB) by hand, from the runbook and Git
-      only — this is the **disaster-recovery drill**: time each step, fix every
-      gap the runbook shows, record the measured RTO. Delete `lagom-shared-01`
-      once prod runs on the new node ([ADR-0020](adr/0020-move-to-the-8-gb-node.md),
-      [ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md))
+- [ ] **Terraform**, with its ADR (state backend), importing `lagom-shared-02`
+      — server and firewall — rather than recreating it ([ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed)
+- [ ] **Move to `lagom-shared-02`** (8 GB) from Git and the runbook — this is
+      the **disaster-recovery drill**: time each step, fix every gap the
+      runbook shows, record the measured RTO. Delete `lagom-shared-01` once
+      prod runs on the new node ([ADR-0020](adr/0020-move-to-the-8-gb-node.md))
 - [ ] Runbook: disaster recovery and secret rotation, written from the drill
 - [ ] Measure the new node's overhead and set its CI ceiling, as ADR-0016 did
+- [ ] **Spike: the SME stack** — the USGS pipeline into DuckLake (Postgres
+      catalog, data on R2) with dbt-duckdb; Evidence reading it; compaction of
+      small files; memory and time against Postgres. Accept or revise
+      ADR-0023 with the numbers
 - [ ] Postgres backup — before Dagster's metastore, whose run history exists
-      only on the node ([ADR-0019](adr/0019-postgres-backup-deferred.md))
+      only on the node. With the SME stack the state to protect is the catalog
+      ([ADR-0019](adr/0019-postgres-backup-deferred.md))
 - [ ] Dagster with Postgres metastore
 - [ ] dlt and dbt assets
 - [ ] Native failure alerting
@@ -237,28 +245,25 @@ to stop and reassess before adding anything.**
 The platform's public face: a static site and a gallery of dashboards, with
 the first showcase in it ([ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md)). Public data, no login.
 
-- [ ] Cloudflare R2 bucket; a Dagster asset exports the showcase's published
-      tables to it as Parquet
 - [ ] Astro site on Cloudflare Pages at getlagom.app — design inspired by
       PostHog's; each page states the problem, then the solution
-- [ ] Evidence dashboards built in GitHub Actions from the Parquet in R2, shown
-      as a gallery of cards on the site
-- [ ] **Showcase: small data** — the USGS pipeline on Postgres, with its real
-      numbers (rows, run time, memory)
+- [ ] Evidence dashboards built in the cluster by a Dagster step after each
+      run and published to Cloudflare Pages, shown as a gallery of cards on the
+      site ([ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed)
+- [ ] **Showcase: the SME stack on USGS** — the pipeline, with its real numbers
+      (rows, run time, memory)
 
 First thing worth showing.
 
-## M5 — Medium data on a small node
+## M5 — The SME stack at scale
 
-The showcase the platform exists for: more data than the node has memory,
-processed with frugal tools.
+The showcase the platform exists for: more data than the node has memory, on
+the same SME stack — most of what is sold as big-data work does not need a
+big-data stack ([ADR-0023](adr/0023-sme-stack-duckdb-on-ducklake.md), proposed).
 
-- [ ] DuckDB over Parquet (or Iceberg — the catalog is chosen at entry) on R2
-- [ ] A public dataset larger than the node's memory
-- [ ] Benchmarks published: rows, gigabytes, time, peak memory — measured,
-      with the method on the page
-- [ ] Lakehouse trigger measures visible: `dbt run` duration and Postgres data
-      size — [ADR-0008](adr/0008-postgres-for-all-layers.md)
+- [ ] A public dataset larger than the node's memory, on the SME stack
+- [ ] Benchmarks published: rows, gigabytes, time, peak memory — Postgres
+      against DuckDB, local disk against R2 — with the method on the page
 
 ## M6 — Streaming
 

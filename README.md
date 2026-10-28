@@ -21,11 +21,10 @@ External sources  ->  Ingestion        ->  Postgres
                       dlt / Redpanda       bronze / silver / gold, transformed by dbt
 ```
 
-A lakehouse — object storage, an open table format, DuckDB — is a showcase of
-its own (M5), not the backbone: the small-data showcase keeps every layer in
-Postgres ([ADR-0008](docs/adr/0008-postgres-for-all-layers.md)), and object
-storage enters in M4 only to carry exports to the site
-([ADR-0022](docs/adr/0022-platform-as-a-portfolio-of-architectures.md)).
+The proposed SME stack ([ADR-0023](docs/adr/0023-sme-stack-duckdb-on-ducklake.md)) keeps the data as Parquet
+files on Cloudflare R2 in DuckLake, with Postgres as the catalog and DuckDB as
+the engine. Until its spike passes, every layer lives in Postgres
+([ADR-0008](docs/adr/0008-postgres-for-all-layers.md)).
 
 Dagster orchestrates from outside the flow. Argo CD reconciles the cluster from
 this repository. Readers see a static public site, getlagom.app, with no path to the cluster
