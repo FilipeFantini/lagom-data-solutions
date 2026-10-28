@@ -1,0 +1,13 @@
+# Helm values for the Barman Cloud plugin.
+# Chart: cnpg/plugin-barman-cloud 0.8.1 (plugin v0.15.1), from
+# https://cloudnative-pg.github.io/charts. Only non-defaults are set here.
+#
+# It must run in the operator's namespace, cnpg-system (Application
+# destination). Its TLS certificates come from cert-manager.
+
+# A Go process; starting figures, corrected from `kubectl top` (ADR-0025).
+resources:
+  requests: {cpu: 10m, memory: 32Mi}
+  limits: {memory: 128Mi}
+additionalEnv:
+  - {name: GOMEMLIMIT, value: 100MiB}

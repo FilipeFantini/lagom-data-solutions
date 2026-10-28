@@ -1,0 +1,36 @@
+# cert-manager: issues the TLS certificates the Barman Cloud plugin and the
+# CloudNativePG operator use to talk to each other (ADR-0025). Nothing else
+# uses it yet.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://charts.jetstack.io
+      chart: cert-manager
+      # The chart is published as v1.21.3; Helm and Argo CD resolve this exact
+      # version to it, and tools/manifest_policy.py wants no prefix.
+      targetRevision: 1.21.3
+      helm:
+        releaseName: cert-manager
+        valueFiles:
+          - $values/platform/infra/cert-manager/values.yaml
+    - repoURL: https://github.com/FilipeFantini/lagom-data-solutions.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      # Never prune: deleting the Certificate CRD deletes every certificate,
+      # and the plugin's TLS with it.
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # The CRDs exceed the 256 KiB annotation client-side apply needs.
+      - ServerSideApply=true

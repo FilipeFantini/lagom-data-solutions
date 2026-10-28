@@ -237,7 +237,9 @@ The node that M3 needs, and the orchestration every showcase uses.
       ADR-0023 with the numbers
 - [ ] Postgres backup — before Dagster's metastore, whose run history exists
       only on the node. With the SME stack the state to protect is the catalog
-      ([ADR-0019](adr/0019-postgres-backup-deferred.md))
+      ([ADR-0019](adr/0019-postgres-backup-deferred.md)). Barman Cloud plugin
+      to R2 ([ADR-0025](adr/0025-postgres-backup-barman-cloud-to-r2.md)):
+      staging first, prod after a restore in staging passes
 - [ ] Dagster with Postgres metastore
 - [ ] dlt and dbt assets
 - [ ] Native failure alerting

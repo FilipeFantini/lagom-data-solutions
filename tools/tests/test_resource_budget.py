@@ -181,3 +181,62 @@ def test_jobs_peak_counts_every_job_at_once() -> None:
     prod = Workload("postgres-prod", "CronJob", "usgs-pipeline", 1, 256 * MI)
     assert jobs_peak_bytes([staging, prod]) == 512 * MI
     assert jobs_peak_bytes([]) == 0
+
+
+def object_store(resources: dict[str, Any] | None) -> dict[str, Any]:
+    spec: dict[str, Any] = {"configuration": {"destinationPath": "s3://bucket/"}}
+    if resources is not None:
+        spec["instanceSidecarConfiguration"] = {"resources": resources}
+    return {
+        "apiVersion": "barmancloud.cnpg.io/v1",
+        "kind": "ObjectStore",
+        "metadata": {"name": "r2-backups"},
+        "spec": spec,
+    }
+
+
+def backed_up_cluster(instances: int = 1) -> dict[str, Any]:
+    cluster = cnpg_cluster(instances)
+    cluster["spec"]["plugins"] = [
+        {
+            "name": "barman-cloud.cloudnative-pg.io",
+            "isWALArchiver": True,
+            "parameters": {"barmanObjectName": "r2-backups"},
+        }
+    ]
+    return cluster
+
+
+SIDECAR = {"requests": {"cpu": "10m", "memory": "64Mi"}, "limits": {"memory": "256Mi"}}
+
+
+@pytest.mark.parametrize(("instances", "expected_mi"), [(1, 364), (2, 728)])
+def test_cnpg_workload_adds_the_barman_sidecar_per_instance(
+    instances: int, expected_mi: int
+) -> None:
+    stores = {"r2-backups": object_store(SIDECAR)}
+    workload = cnpg_workload("postgres-staging", backed_up_cluster(instances), stores)
+    assert workload.total == expected_mi * MI
+
+
+def test_cnpg_without_plugin_ignores_object_stores() -> None:
+    stores = {"r2-backups": object_store(SIDECAR)}
+    assert cnpg_workload("app", cnpg_cluster(), stores).total == 300 * MI
+    assert cnpg_violations("x", cnpg_cluster(), stores) == []
+
+
+def test_cnpg_violations_accept_a_complete_sidecar() -> None:
+    assert cnpg_violations("x", backed_up_cluster(), {"r2-backups": object_store(SIDECAR)}) == []
+
+
+def test_cnpg_violations_name_a_sidecar_without_resources() -> None:
+    assert cnpg_violations("x", backed_up_cluster(), {"r2-backups": object_store(None)}) == [
+        "x ObjectStore r2-backups instanceSidecarConfiguration.resources: "
+        "no memory request, memory limit, CPU request"
+    ]
+
+
+def test_cnpg_violations_name_an_object_store_not_rendered() -> None:
+    assert cnpg_violations("x", backed_up_cluster(), {}) == [
+        "x names ObjectStore 'r2-backups', not rendered by its Application"
+    ]

@@ -240,10 +240,15 @@ not take this role.
 **How it runs: CloudNativePG** ([ADR-0012](adr/0012-cloudnative-pg.md)). An
 operator in `cnpg-system` reconciles each committed `Cluster` object into
 Postgres Pods, disks, Services, and credentials. Roles, databases, and the
-pooler are declared the same way when their triggers arrive. Backup is not
-configured until the backup trigger
-([ADR-0019](adr/0019-postgres-backup-deferred.md)); the options and their resident
-cost are compared in the ADR.
+pooler are declared the same way when their triggers arrive.
+
+**Backup** ([ADR-0025](adr/0025-postgres-backup-barman-cloud-to-r2.md)): the
+Barman Cloud plugin, running beside the operator, archives every WAL segment
+and takes a daily base backup into an R2 bucket per environment. Each Cluster
+names an `ObjectStore` in `spec.plugins`, and the plugin adds a sidecar to its
+Pod. Staging first (`lagom-staging-backups`). Prod follows once a restore in
+staging has passed. cert-manager issues the TLS certificates the plugin and
+the operator use.
 
 **Credentials.** The prod `Cluster` ([`platform/infra/postgres-prod/`](../platform/infra/postgres-prod/cluster.yaml))
 creates the `lagom` database and role, and the operator generates that role's
@@ -500,14 +505,15 @@ for k3s's growth over days and the shims of new Pods, which requests do not
 count ([ADR-0024](adr/0024-ci-ceiling-on-the-8-gb-node.md)). It was 2.2 GB on
 the 4 GB node ([ADR-0016](adr/0016-ci-ceiling-2-2-gb.md)), where M3 did not
 fit, hence the move ([ADR-0020](adr/0020-move-to-the-8-gb-node.md)). Today's
-total is 2,078 MiB; M3 with Dagster is about 2,680.
+total is 2,334 MiB; M3 with Dagster is about 2,930.
 
 **How CI enforces it.** [`tools/resource_budget.py`](../tools/resource_budget.py)
 runs on every pull request ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)).
 It renders every Application the way Argo CD does and fails if any container
 lacks a memory request, a memory limit, or a CPU request (for a CloudNativePG
 `Cluster`, whose Pods the operator creates, its `spec.resources` and
-`spec.instances` stand in for the Pod spec), or if the total
+`spec.instances` stand in for the Pod spec, plus the Barman Cloud sidecar
+declared on the `ObjectStore` it names), or if the total
 exceeds the ceiling above, which it reads from this file. The total is resident
 requests, plus **every ephemeral job at once**, plus an **allowance for
 components k3s installs outside Git**.
@@ -526,16 +532,18 @@ adds that 70 MiB request as its allowance for components outside Git.
 | kube-system (CoreDNS, metrics-server) and local-path | ~215 MB | requests: CoreDNS 70, metrics-server 80, local-path 64 MiB; Traefik disabled ([ADR-0021](adr/0021-k3s-packaged-components-under-git.md)). Measured 2026-10-27: 71, 73 and 47 MiB |
 | Argo CD (no Dex) | 608 MB | set from measurement with three Applications: application-controller 290–465 MiB before `GOMEMLIMIT`, 190–285 MiB after (request 384, limit 640, `GOMEMLIMIT` 540MiB), repo-server ~105, server ~37, redis ~10 ([ADR-0009](adr/0009-argocd-bootstrap-and-self-management.md)) |
 | CloudNativePG operator | 64 MB | measured 24 MiB with no Cluster, 31 MiB reconciling one (request 64, limit 192, `GOMEMLIMIT` 150MiB) ([ADR-0012](adr/0012-cloudnative-pg.md)) |
+| Backup: Barman Cloud plugin and cert-manager | 192 MB | plugin 32, cert-manager controller 64, cainjector 64, webhook 32; starting figures, each with `GOMEMLIMIT`, to be measured ([ADR-0025](adr/0025-postgres-backup-barman-cloud-to-r2.md)). Each backed-up Postgres instance adds a 64 MiB sidecar, counted with its Cluster |
 | Postgres (prod `Cluster`, 1 instance) | 300 MB | request 300 MiB, limit 512 MiB; `shared_buffers` 96MB, `max_connections` 25, `work_mem` 4MB, `maintenance_work_mem` 32MB, `effective_cache_size` 256MB, instance manager `GOMEMLIMIT` 96MiB. Measured idle on 2026-10-16: pod working set 47 MiB, cgroup 55 MiB (25 anonymous, 25 page cache), instance manager ~62 MiB RSS including shared pages. The request is kept for dbt load, measured in M2. Counted by the CI check, which reads the `Cluster` object because the operator creates its Pods ([`platform/infra/postgres-prod/`](../platform/infra/postgres-prod/cluster.yaml)) |
 | Dagster | 600 MB | measured in a spike: ~550 MiB resident with real libraries ([ADR-0011](adr/0011-memory-viability-on-4gb.md)) |
-| **Core requests** | **~1.79 GB** | |
-| **Left within the ceiling for ephemeral jobs** | **~3.7 GB** | |
+| **Core requests** | **~1.98 GB** | |
+| **Left within the ceiling for ephemeral jobs** | **~3.5 GB** | |
 
-Staging adds ~300 MB for its own Postgres
+Staging adds ~364 MB for its own Postgres
 ([ADR-0007](adr/0007-three-environments.md)): a second `Cluster` with the same
-request and limit as prod's, which the CI check counts like the first
+request and limit as prod's, plus the 64 MiB backup sidecar, which the CI
+check counts like the first
 ([`platform/infra/postgres-staging/`](../platform/infra/postgres-staging/cluster.yaml)).
-That leaves **~3.4 GB** for jobs. Staging's ResourceQuota caps what its jobs
+That leaves **~3.1 GB** for jobs. Staging's ResourceQuota caps what its jobs
 can request at 768 MiB in all, Postgres included.
 dlt and dbt do not appear above: they are ephemeral jobs, and their requests
 count against what is left. In staging they are one Pod, the CronJob
@@ -567,12 +575,12 @@ ephemeral job, measured in the SME-stack spike.
 | Streamlit | 250 MB |
 | Grafana | 150 MB |
 | PgBouncer | 5 MB |
-| **Core + staging + additions** | **~2.6 GB of requests** |
-| **Left within the ceiling for ephemeral jobs** | **~2.9 GB** |
+| **Core + staging + additions** | **~2.9 GB of requests** |
+| **Left within the ceiling for ephemeral jobs** | **~2.6 GB** |
 
 On the 4 GB node the full design left no room for jobs, which is why the
 platform moved to the CAX21 ([ADR-0020](adr/0020-move-to-the-8-gb-node.md)).
-On the 8 GB node it fits with about 2.9 GB to spare; that room is the margin
+On the 8 GB node it fits with about 2.6 GB to spare; that room is the margin
 the node allows, not a budget to fill (§1).
 
 ## 12. Accepted risks

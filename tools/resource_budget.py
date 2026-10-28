@@ -15,6 +15,12 @@ inspect; the Cluster's spec.resources is what the operator copies into every
 instance, and spec.instances is the replica count. Rule 1 applies to
 spec.resources as if it were a single container.
 
+A Cluster that backs up through the Barman Cloud plugin also runs the
+plugin's sidecar in every instance Pod. Its resources are declared on the
+ObjectStore (barmancloud.cnpg.io/v1) the Cluster names in spec.plugins, so
+the sidecar's request is added to each instance, and rule 1 applies to it. The
+ObjectStore must be rendered by the same Application as the Cluster.
+
 Exits 1 on any violation. Run from anywhere:
 
     uv run --project tools python tools/resource_budget.py
@@ -40,6 +46,8 @@ CEILING_PATTERN = re.compile(r"Ceiling enforced in CI: ([0-9.]+) GB of declared 
 RESIDENT_KINDS = {"Deployment", "StatefulSet", "DaemonSet", "ReplicaSet", "Pod"}
 EPHEMERAL_KINDS = {"Job", "CronJob"}
 CNPG_API_VERSION = "postgresql.cnpg.io/v1"
+OBJECT_STORE_API_VERSION = "barmancloud.cnpg.io/v1"
+BARMAN_PLUGIN = "barman-cloud.cloudnative-pg.io"
 
 _BINARY = {"Ki": 2**10, "Mi": 2**20, "Gi": 2**30, "Ti": 2**40}
 _DECIMAL = {"k": 10**3, "M": 10**6, "G": 10**9, "T": 10**12}
@@ -121,21 +129,64 @@ def is_cnpg_cluster(doc: dict[str, Any]) -> bool:
     return doc.get("apiVersion") == CNPG_API_VERSION and doc.get("kind") == "Cluster"
 
 
-def cnpg_violations(label: str, doc: dict[str, Any]) -> list[str]:
-    """List the required resources a CloudNativePG Cluster does not declare."""
+def is_object_store(doc: dict[str, Any]) -> bool:
+    return doc.get("apiVersion") == OBJECT_STORE_API_VERSION and doc.get("kind") == "ObjectStore"
+
+
+def barman_object_stores(doc: dict[str, Any]) -> list[str]:
+    """Names of the ObjectStores a Cluster's Barman Cloud plugin entries point at."""
+    return [
+        (plugin.get("parameters") or {}).get("barmanObjectName", "")
+        for plugin in doc["spec"].get("plugins") or []
+        if plugin.get("name") == BARMAN_PLUGIN
+    ]
+
+
+def _sidecar_resources(store: dict[str, Any]) -> dict[str, Any] | None:
+    sidecar = (store.get("spec") or {}).get("instanceSidecarConfiguration") or {}
+    resources: dict[str, Any] | None = sidecar.get("resources")
+    return resources
+
+
+def cnpg_violations(
+    label: str, doc: dict[str, Any], stores: dict[str, dict[str, Any]] | None = None
+) -> list[str]:
+    """List the required resources a CloudNativePG Cluster, or its sidecar, does not declare."""
+    found = []
     missing = _missing_resources(doc["spec"].get("resources"))
-    return [f"{label} spec.resources: no {', '.join(missing)}"] if missing else []
+    if missing:
+        found.append(f"{label} spec.resources: no {', '.join(missing)}")
+    for name in barman_object_stores(doc):
+        store = (stores or {}).get(name)
+        if store is None:
+            found.append(f"{label} names ObjectStore {name!r}, not rendered by its Application")
+            continue
+        missing = _missing_resources(_sidecar_resources(store))
+        if missing:
+            found.append(
+                f"{label} ObjectStore {name} instanceSidecarConfiguration.resources: "
+                f"no {', '.join(missing)}"
+            )
+    return found
 
 
-def cnpg_workload(app: str, doc: dict[str, Any]) -> Workload:
-    """A Cluster as a resident workload: `instances` Pods, each requesting spec.resources."""
+def cnpg_workload(
+    app: str, doc: dict[str, Any], stores: dict[str, dict[str, Any]] | None = None
+) -> Workload:
+    """A Cluster as a resident workload: `instances` Pods, each requesting spec.resources
+    plus the request of every Barman Cloud sidecar it runs."""
     spec = doc["spec"]
+    per_instance = _memory_request({"resources": spec.get("resources")})
+    for name in barman_object_stores(doc):
+        store = (stores or {}).get(name)
+        if store is not None:
+            per_instance += _memory_request({"resources": _sidecar_resources(store)})
     return Workload(
         app,
         "Cluster",
         doc["metadata"]["name"],
         1 if spec.get("instances") is None else spec["instances"],
-        _memory_request({"resources": spec.get("resources")}),
+        per_instance,
     )
 
 
@@ -256,11 +307,13 @@ def main() -> int:
 
     for app in load_applications(repo):
         app_name = app["metadata"]["name"]
-        for doc in render_application(repo, app):
+        docs = render_application(repo, app)
+        stores = {d["metadata"]["name"]: d for d in docs if is_object_store(d)}
+        for doc in docs:
             if is_cnpg_cluster(doc):
                 label = f"{app_name}/Cluster/{doc['metadata']['name']}"
-                problems += cnpg_violations(label, doc)
-                resident.append(cnpg_workload(app_name, doc))
+                problems += cnpg_violations(label, doc, stores)
+                resident.append(cnpg_workload(app_name, doc, stores))
                 continue
             kind = doc.get("kind")
             if kind not in RESIDENT_KINDS | EPHEMERAL_KINDS:

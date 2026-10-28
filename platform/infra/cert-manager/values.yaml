@@ -1,0 +1,36 @@
+# Helm values for cert-manager.
+# Chart: jetstack/cert-manager v1.21.3, from https://charts.jetstack.io.
+# Only what differs from the chart defaults is set here.
+
+# The chart installs its CRDs only when asked.
+crds:
+  enabled: true
+
+# Requests and limits are starting figures, not measurements: each is a small
+# Go process. Corrected from `kubectl top` once running (ADR-0025).
+# GOMEMLIMIT keeps each runtime under its limit instead of holding idle heap
+# (architecture.md section 11).
+resources:
+  requests: {cpu: 10m, memory: 64Mi}
+  limits: {memory: 192Mi}
+extraEnv:
+  - {name: GOMEMLIMIT, value: 160MiB}
+
+webhook:
+  resources:
+    requests: {cpu: 10m, memory: 32Mi}
+    limits: {memory: 96Mi}
+  extraEnv:
+    - {name: GOMEMLIMIT, value: 80MiB}
+
+cainjector:
+  resources:
+    requests: {cpu: 10m, memory: 64Mi}
+    limits: {memory: 192Mi}
+  extraEnv:
+    - {name: GOMEMLIMIT, value: 160MiB}
+
+# A post-install Job that only waits for the API to answer. Argo CD's health
+# checks already show that, and the Job would be one more Pod on every sync.
+startupapicheck:
+  enabled: false
