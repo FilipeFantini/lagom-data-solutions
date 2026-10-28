@@ -85,9 +85,9 @@ dagster-user-deployments:
     - name: lagom
       image:
         repository: ghcr.io/filipefantini/lagom-orchestration
-        # Pinned by digest (ADR-0015): built from main at 89b0e41 (PR #33,
-        # the image without an ENTRYPOINT).
-        tag: "89b0e410c9bb4d578f8ace23c3258c235ff17f0b@sha256:57ba44791aa4d68db8ca6baf6220daa1c0fa21d35b2007552fbc38de81478f4a"
+        # Pinned by digest (ADR-0015): built from main at ccdf9a3 (PR #34,
+        # psycopg 3 for Dagster's Postgres storage).
+        tag: "ccdf9a30d6fafad3956e3db9065829104b95a410@sha256:d4bd17c127f524bfafccea69c6de1144ad125aa098c1824c89061bd1a50869da"
         pullPolicy: IfNotPresent
       dagsterApiGrpcArgs: ["-m", "lagom_orchestration.definitions"]
       port: 3030
