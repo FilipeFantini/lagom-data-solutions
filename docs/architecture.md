@@ -348,16 +348,26 @@ native arm64 runner:
   [`platform/warehouse/Dockerfile`](../platform/warehouse/Dockerfile).
 - `ghcr.io/filipefantini/lagom-orchestration`: the Dagster code location,
   [`platform/orchestration/Dockerfile`](../platform/orchestration/Dockerfile).
-  It is built from the repository root. A pull
-request builds and smoke-tests them without pushing; a push to `main` publishes
-them tagged with the commit SHA, and the digest is printed in the run summary.
-Both are multi-stage (uv exists only in the build stage), pinned by digest at
-the base, run as UID 10001 on a read-only root filesystem, and write only under
-`/tmp`: mount an `emptyDir` there. Measured on the first build (archive PR #27,
-2026-10-17): `lagom-usgs` 206 MiB, `lagom-warehouse` 397 MiB, built in 40 and
-52 s. Both packages are private: an anonymous manifest request to ghcr.io
+  It is built from the repository root.
+
+A pull request builds and smoke-tests them without pushing. A push to `main`
+publishes them tagged with the commit SHA, and the digest is printed in the
+run summary. Each image:
+
+- is multi-stage, with uv only in the build stage;
+- is pinned by digest at the base;
+- runs as UID 10001 on a read-only root filesystem;
+- writes only under `/tmp`, so mount an `emptyDir` there.
+
+Sizes, measured on the first builds: `lagom-usgs` 206 MiB and
+`lagom-warehouse` 397 MiB (archive PR #27, 2026-10-17, built in 40 and 52 s),
+and `lagom-orchestration` 961 MiB (PR #31, 2026-10-28). The orchestration image
+bundles Dagster, dbt, dlt, DuckDB and pyarrow.
+
+The first two packages are private: an anonymous manifest request to ghcr.io
 returns HTTP 403 (checked 2026-10-17; the same request against a public image
-succeeds). Staging's and prod's CronJob `usgs-pipeline` runs them
+succeeds). `lagom-orchestration` is checked the same way once it is
+published. Staging's and prod's CronJob `usgs-pipeline` runs them
 every 30 minutes, dbt starting only if the load exited 0: both are init
 containers, and a `heartbeat` container pings Healthchecks.io only if both
 exited 0 ([ADR-0018](adr/0018-pipeline-heartbeat.md)). It pulls from GHCR with

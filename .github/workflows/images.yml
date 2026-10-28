@@ -9,12 +9,14 @@ on:
     paths:
       - "services/**"
       - "platform/warehouse/**"
+      - "platform/orchestration/**"
       - ".github/workflows/images.yml"
   push:
     branches: [main]
     paths:
       - "services/**"
       - "platform/warehouse/**"
+      - "platform/orchestration/**"
       - ".github/workflows/images.yml"
 
 permissions:

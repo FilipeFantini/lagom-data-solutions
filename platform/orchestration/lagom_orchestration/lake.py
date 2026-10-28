@@ -47,7 +47,9 @@ def attach_lake(alias: str = "lake") -> duckdb.DuckDBPyConnection:
 
     Reads the same variables as the dbt `lake` target (platform/warehouse/
     profiles.yml), so maintenance and transformation see the same catalog.
-    The statements hold the R2 key, so they are never logged.
+    The statements hold the R2 key and the catalog's password; this code never
+    logs them. Whether a DuckDB error echoes the catalog string is checked on
+    the first staging run, where the catalog is Postgres.
     """
     connection = duckdb.connect()
     for extension in ("ducklake", "httpfs", "postgres"):
