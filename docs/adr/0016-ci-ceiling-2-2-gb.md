@@ -1,6 +1,6 @@
 # ADR-0016 — CI ceiling lowered to 2.2 GB from the measured overhead
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR-0024](0024-ci-ceiling-on-the-8-gb-node.md) (the figure; the method stands)
 - **Date:** 2026-10-17
 - **Supersedes:** decision 3 of [ADR-0011](0011-memory-viability-on-4gb.md)
   ("the 2.6 GB ceiling stands")

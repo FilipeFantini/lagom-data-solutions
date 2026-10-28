@@ -35,7 +35,7 @@ decision, consequences, and how to reverse it.
 | [0013](0013-agent-driven-development-guardrails.md) | Agent-driven development behind enforced guardrails | Accepted |
 | [0014](0014-develop-against-staging.md) | Develop against staging, with no local services | Accepted |
 | [0015](0015-images-on-ghcr.md) | Images built in CI, published privately to GHCR, promoted by digest | Accepted |
-| [0016](0016-ci-ceiling-2-2-gb.md) | CI ceiling lowered to 2.2 GB from the measured overhead | Accepted |
+| [0016](0016-ci-ceiling-2-2-gb.md) | CI ceiling lowered to 2.2 GB from the measured overhead | Superseded by 0024 |
 | [0017](0017-public-repository-from-a-snapshot.md) | Publish as a new public repository from a single-commit snapshot | Accepted |
 | [0018](0018-pipeline-heartbeat.md) | Pipeline liveness by heartbeat to Healthchecks.io | Accepted |
 | [0019](0019-postgres-backup-deferred.md) | Postgres backup deferred until the node holds state no source can rebuild | Accepted |
@@ -43,3 +43,4 @@ decision, consequences, and how to reverse it.
 | [0021](0021-k3s-packaged-components-under-git.md) | Traefik and servicelb disabled; local-path and metrics-server managed by Argo CD | Accepted |
 | [0022](0022-platform-as-a-portfolio-of-architectures.md) | The platform as a portfolio of data architectures, shown on getlagom.app | Accepted |
 | [0023](0023-sme-stack-duckdb-on-ducklake.md) | The SME stack: DuckDB on DuckLake, Postgres as catalog, data on R2 | Proposed |
+| [0024](0024-ci-ceiling-on-the-8-gb-node.md) | CI ceiling raised to 5.5 GB, measured on the 8 GB node | Accepted |
