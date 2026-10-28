@@ -46,7 +46,7 @@ flowchart TB
 Data comes in through ingestion jobs that start, do their work, and exit. It
 is stored in layers (raw, cleaned, modelled) and transformed with dbt.
 Dagster is set to schedule the work from the outside. After each run the
-dashboards are rebuilt and published as plain files: the numbers stay fresh,
+dashboards will be rebuilt and published as plain files: the numbers stay fresh,
 the charts are interactive in the browser, and no visitor ever reaches the
 cluster. Argo CD keeps the cluster in sync
 with this repository, so changes arrive through Git, not by hand.
