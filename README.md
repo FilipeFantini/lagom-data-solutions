@@ -19,34 +19,27 @@ rehearsed disaster recovery come with it.
 ## How it fits together
 
 ```mermaid
-flowchart LR
-    src(["Public APIs<br/>and event feeds"])
+flowchart TB
+    src(["Public data<br/>APIs and event feeds"])
 
-    subgraph node["One small node · k3s"]
+    subgraph node["One small node, running k3s"]
         direction LR
-        ing["Ingestion<br/>dlt · Redpanda Connect"]
-        store[("Storage<br/>bronze · silver · gold")]
-        dbt["Transformation<br/>dbt"]
-        dag{{"Orchestration<br/>Dagster"}}
-        ing --> store
-        store <--> dbt
-        dag -.-> ing
-        dag -.-> dbt
+        ing["Ingest<br/>dlt"] --> store[("Store<br/>bronze · silver · gold")] --> dbt["Transform<br/>dbt"]
     end
 
     site(["getlagom.app<br/>static dashboards"])
-    git(["GitHub"])
 
-    src --> ing
-    store --> site
-    git -- "Argo CD" --> node
+    src --> node
+    node --> site
+    dag{{"Dagster<br/>orchestrates"}} -.-> node
+    git(["GitHub"]) -- "Argo CD syncs" --> node
 
     classDef ext fill:#eef2ff,stroke:#6366f1,color:#1e1b4b
     classDef core fill:#ecfdf5,stroke:#10b981,color:#064e3b
-    classDef orch fill:#fff7ed,stroke:#f59e0b,color:#78350f
-    class src,site,git ext
+    classDef side fill:#fff7ed,stroke:#f59e0b,color:#78350f
+    class src,site ext
     class ing,store,dbt core
-    class dag orch
+    class dag,git side
 ```
 
 Data comes in through ingestion jobs that start, do their work, and exit. It
