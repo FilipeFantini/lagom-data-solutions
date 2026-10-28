@@ -21,6 +21,10 @@ ObjectStore (barmancloud.cnpg.io/v1) the Cluster names in spec.plugins, so
 the sidecar's request is added to each instance, and rule 1 applies to it. The
 ObjectStore must be rendered by the same Application as the Cluster.
 
+Pods a controller creates at run time from no rendered spec, such as Dagster's
+runs, are declared on their Application with the annotation
+`lagom.dev/ephemeral-memory-request` and counted as one ephemeral job each.
+
 Exits 1 on any violation. Run from anywhere:
 
     uv run --project tools python tools/resource_budget.py
@@ -48,6 +52,7 @@ EPHEMERAL_KINDS = {"Job", "CronJob"}
 CNPG_API_VERSION = "postgresql.cnpg.io/v1"
 OBJECT_STORE_API_VERSION = "barmancloud.cnpg.io/v1"
 BARMAN_PLUGIN = "barman-cloud.cloudnative-pg.io"
+EPHEMERAL_ANNOTATION = "lagom.dev/ephemeral-memory-request"
 
 _BINARY = {"Ki": 2**10, "Mi": 2**20, "Gi": 2**30, "Ti": 2**40}
 _DECIMAL = {"k": 10**3, "M": 10**6, "G": 10**9, "T": 10**12}
@@ -190,6 +195,15 @@ def cnpg_workload(
     )
 
 
+def declared_ephemeral(app: dict[str, Any]) -> Workload | None:
+    """The run-time Pods an Application declares, as one ephemeral job."""
+    annotations = app["metadata"].get("annotations") or {}
+    value = annotations.get(EPHEMERAL_ANNOTATION)
+    if value is None:
+        return None
+    return Workload(app["metadata"]["name"], "declared", "runs", 1, parse_bytes(value))
+
+
 def replicas(doc: dict[str, Any]) -> int:
     if doc["kind"] in {"Deployment", "StatefulSet", "ReplicaSet"}:
         count: int = doc["spec"].get("replicas", 1)
@@ -307,6 +321,9 @@ def main() -> int:
 
     for app in load_applications(repo):
         app_name = app["metadata"]["name"]
+        declared = declared_ephemeral(app)
+        if declared is not None:
+            ephemeral.append(declared)
         docs = render_application(repo, app)
         stores = {d["metadata"]["name"]: d for d in docs if is_object_store(d)}
         for doc in docs:

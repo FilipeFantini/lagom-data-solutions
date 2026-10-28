@@ -1,0 +1,35 @@
+# Dagster for staging (ADR-0026): webserver, daemon and the platform's code
+# location, in the staging namespace, with its metadata in staging's Postgres.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: dagster-staging
+  namespace: argocd
+  annotations:
+    # Each run is a Pod the run launcher creates at run time, so nothing
+    # rendered from this Application shows it. tools/resource_budget.py counts
+    # this request as one ephemeral job: the code location's request, which
+    # its runs inherit (values.yaml).
+    lagom.dev/ephemeral-memory-request: 384Mi
+spec:
+  project: default
+  sources:
+    - repoURL: https://dagster-io.github.io/helm
+      chart: dagster
+      targetRevision: 1.13.27
+      helm:
+        releaseName: dagster
+        valueFiles:
+          - $values/platform/infra/dagster-staging/values.yaml
+    - repoURL: https://github.com/FilipeFantini/lagom-data-solutions.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: staging
+  syncPolicy:
+    automated:
+      # Dagster's state is in Postgres, not in these objects, so removing one
+      # from Git may remove it here.
+      prune: true
+      selfHeal: true

@@ -240,3 +240,28 @@ def test_cnpg_violations_name_an_object_store_not_rendered() -> None:
     assert cnpg_violations("x", backed_up_cluster(), {}) == [
         "x names ObjectStore 'r2-backups', not rendered by its Application"
     ]
+
+
+def test_declared_ephemeral_reads_the_annotation() -> None:
+    from resource_budget import declared_ephemeral
+
+    app = {
+        "metadata": {
+            "name": "dagster-staging",
+            "annotations": {"lagom.dev/ephemeral-memory-request": "384Mi"},
+        }
+    }
+    workload = declared_ephemeral(app)
+    assert workload is not None
+    assert (workload.app, workload.kind, workload.total) == (
+        "dagster-staging",
+        "declared",
+        384 * MI,
+    )
+
+
+def test_declared_ephemeral_absent_without_annotation() -> None:
+    from resource_budget import declared_ephemeral
+
+    assert declared_ephemeral({"metadata": {"name": "x"}}) is None
+    assert declared_ephemeral({"metadata": {"name": "x", "annotations": None}}) is None

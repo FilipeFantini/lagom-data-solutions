@@ -94,3 +94,13 @@ spec:
         createdb: false
         passwordSecret:
           name: lagom-dev-credentials
+      # Dagster's metadata (ADR-0026): owner of the database `dagster` only.
+      # Its password is random, generated and sealed by the operator in
+      # dagster-db-sealed.yaml; nothing else needs it, so it is not kept.
+      - name: dagster
+        ensure: present
+        login: true
+        superuser: false
+        createdb: false
+        passwordSecret:
+          name: dagster-db
