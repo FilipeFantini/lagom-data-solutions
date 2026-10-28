@@ -127,3 +127,6 @@ without rewriting it.
   and revisions older than 30 days are out of scope, so "recovery is a
   re-load" means the last 30 days of events
   ([`services/usgs/README.md`](../../services/usgs/README.md)).
+- **2026-10-28 — the trigger is met, the backup chosen.** Dagster's run history
+  is next in M3. The backup is the Barman Cloud plugin to R2, staging first
+  ([ADR-0025](0025-postgres-backup-barman-cloud-to-r2.md)).

@@ -59,6 +59,18 @@ spec:
 
   enableSuperuserAccess: false
 
+  # Backups (ADR-0025): the Barman Cloud plugin archives every WAL segment to
+  # the ObjectStore r2-backups (objectstore.yaml) and takes the base backups
+  # scheduledbackup.yaml asks for. isWALArchiver makes it the one place WAL
+  # goes. If archiving fails, Postgres keeps the WAL on its volume and the
+  # Cluster reports it, so the failure is loud, not silent: watch the
+  # volume, since it fills if archiving stays broken.
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: r2-backups
+
   # The developer's login (ADR-0014). The operator creates the role and keeps
   # it matching this block. Its password comes from the Sealed Secret
   # lagom-dev-credentials (ADR-0010), unsealed into a basic-auth Secret in this

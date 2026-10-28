@@ -1,0 +1,56 @@
+# Where staging's Postgres is backed up: the R2 bucket lagom-staging-backups
+# (ADR-0025). The Barman Cloud plugin reads this object; the Cluster names it
+# in spec.plugins. No namespace here: Argo CD's destination sets it.
+#
+# Two kinds of copy land in the bucket. WAL archiving ships every completed
+# write-ahead log segment as soon as Postgres closes it (at the latest every
+# 5 minutes, CloudNativePG's archive_timeout). Base backups are full copies,
+# taken by scheduledbackup.yaml. A restore starts from a base backup and
+# replays WAL up to any moment after it: point-in-time recovery.
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: r2-backups
+spec:
+  # Base backups older than this, and the WAL only they need, are deleted.
+  # Staging holds data a re-load rebuilds; a week is room to notice a broken
+  # backup and still have a good one.
+  retentionPolicy: "7d"
+  configuration:
+    destinationPath: s3://lagom-staging-backups/
+    # The token is scoped to this bucket only, with object read and write
+    # (runbook, Backup and restore). Sealed in r2-backups-sealed.yaml.
+    s3Credentials:
+      accessKeyId:
+        name: r2-backups
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: r2-backups
+        key: ACCESS_SECRET_KEY
+    wal:
+      compression: gzip
+    data:
+      compression: gzip
+  instanceSidecarConfiguration:
+    env:
+      # The R2 endpoint contains the Cloudflare account ID, which stays out of
+      # this public repository: it travels in the sealed Secret, and the AWS
+      # SDK under barman-cloud reads it from this variable when no endpointURL
+      # is set above. R2 uses the region name "auto".
+      - name: AWS_ENDPOINT_URL_S3
+        valueFrom:
+          secretKeyRef:
+            name: r2-backups
+            key: ENDPOINT
+      - name: AWS_DEFAULT_REGION
+        value: auto
+    # The sidecar runs in the Postgres Pod and starts barman-cloud (Python)
+    # for each WAL segment and backup. Starting figures, corrected from
+    # `kubectl top pod --containers` (ADR-0025). Staging's ResourceQuota counts
+    # them: 300 + 64 Mi of requests for the Pod, with the pipeline's 256.
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 256Mi

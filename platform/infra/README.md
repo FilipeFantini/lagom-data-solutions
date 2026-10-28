@@ -12,8 +12,10 @@ bootstrap — merge to `main` and Argo CD converges.
 | `local-path/` | The storage provisioner every Postgres volume uses, vendored from upstream with k3s's settings ([ADR-0021](../../docs/adr/0021-k3s-packaged-components-under-git.md)) |
 | `metrics-server/values.yaml` | Helm values for metrics-server, which serves `kubectl top` |
 | `cloudnative-pg/values.yaml` | Helm values for the operator that runs Postgres from `Cluster` objects |
+| `barman-cloud/values.yaml` | Helm values for the Barman Cloud plugin, which backs up each Postgres `Cluster` to R2 ([ADR-0025](../../docs/adr/0025-postgres-backup-barman-cloud-to-r2.md)) |
+| `cert-manager/values.yaml` | Helm values for cert-manager, which issues the plugin's TLS certificates |
 | `postgres-prod/` | The prod database: one CloudNativePG `Cluster`. The operator generates its credentials in the cluster; nothing is committed. Its `NetworkPolicy` admits only `prod` and the operator, so staging cannot reach it |
-| `postgres-staging/` | The staging database: a `Cluster` mirroring prod's, the developer's `lagom_dev` role and database, a ResourceQuota and LimitRange, and the sealed credential for that role |
+| `postgres-staging/` | The staging database: a `Cluster` mirroring prod's, the developer's `lagom_dev` role and database, a ResourceQuota and LimitRange, the sealed credential for that role, and its backup to R2 (`ObjectStore`, `ScheduledBackup`, the sealed R2 token) |
 | `hello/` | A trivial nginx that proves the loop works |
 
 How it fits together, and why: [ADR-0009](../../docs/adr/0009-argocd-bootstrap-and-self-management.md).

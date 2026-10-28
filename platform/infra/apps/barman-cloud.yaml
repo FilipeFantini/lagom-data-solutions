@@ -1,0 +1,30 @@
+# The Barman Cloud plugin for CloudNativePG: continuous WAL archiving and base
+# backups of each Postgres Cluster to object storage (ADR-0025). It runs next
+# to the operator; each Cluster that uses it gets a sidecar in its Pod.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: barman-cloud
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://cloudnative-pg.github.io/charts
+      chart: plugin-barman-cloud
+      targetRevision: 0.8.1
+      helm:
+        releaseName: barman-cloud
+        valueFiles:
+          - $values/platform/infra/barman-cloud/values.yaml
+    - repoURL: https://github.com/FilipeFantini/lagom-data-solutions.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cnpg-system
+  syncPolicy:
+    automated:
+      # Never prune: deleting the ObjectStore CRD deletes every ObjectStore,
+      # and every Cluster that archives to one stops archiving.
+      prune: false
+      selfHeal: true
