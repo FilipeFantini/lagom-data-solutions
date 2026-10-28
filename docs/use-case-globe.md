@@ -1,5 +1,10 @@
 # Use case — the globe
 
+> **Status (2026-10-28):** not on the roadmap. The platform became a portfolio
+> of data architectures ([ADR-0022](adr/0022-platform-as-a-portfolio-of-architectures.md)), and the globe left the
+> milestones. The sources below remain candidates for the streaming showcase
+> (M6). The rest is kept as the original idea.
+
 The first solution built on the platform, not the project itself. The platform
 is the deliverable; the globe is what proves it works.
 

@@ -140,3 +140,9 @@ monitoring, not in someone's memory.
   base fee is comparable to the node, not larger than it as stated above. It
   would still nearly double the bill for megabytes of data; the decision is
   unchanged.
+- **2026-10-28 — object storage and the lakehouse, after [ADR-0022](0022-platform-as-a-portfolio-of-architectures.md).**
+  Object storage (R2) enters in M4, before any measured limit of Postgres, as
+  the bridge that carries Parquet exports to the public site — not as a layer
+  of the warehouse. The lakehouse (open table format, DuckDB) enters in M5 as a
+  showcase of its own. The small-data showcase keeps every layer in Postgres,
+  as decided above.
