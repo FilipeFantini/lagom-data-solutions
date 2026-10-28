@@ -1,128 +1,97 @@
 # Lagom Data Solutions
 
-An open project that combines open-source stacks to deliver data solutions on
-minimal infrastructure.
+Open-source data stacks doing real analytics on one small server.
 
-**The problem.** Most organisations do not have big data. Their data fits on
-one machine, often in its memory. Yet the default answer is a stack sized for
-volumes they will never reach: distributed engines, warehouses billed per
-query, and many resident services to operate. The cost and the
-operational weight come from the tools, not from the data.
+Most data is not big data. Sales records, sensor readings, a public API: it
+usually fits on a single machine. Yet the default answer is a stack built for
+petabytes, with the cost and the operational weight that come with it. This
+project goes the other way. It combines open-source tools that are light on
+memory into a data platform that runs on one modest node, and measures how
+far that gets.
 
-**What this project does.** It puts together open-source tools that each do
-one job with little resident memory: ingestion, transformation,
-orchestration, GitOps delivery and publishing. The platform runs on a single
-small node and grows by composition: a new source is one more pipeline on the
-same backbone. Each architecture is measured (rows, run time, memory) and
-will be shown with those numbers on getlagom.app (M4), so the claim "you do
-not need a big-data stack" can be checked, not just believed. A big-data stack enters later, as the comparison
-that shows where the small one stops
-([ADR-0023](docs/adr/0023-sme-stack-duckdb-on-ducklake.md), proposed).
+Small does not have to mean fragile. GitOps, tests, data reconciliation and a
+rehearsed disaster recovery come with it.
 
-Two rules hold throughout. **Cheap must not mean fragile:** the resource
-budget is a constraint designed against, with tests, data reconciliation,
-GitOps and a rehearsed disaster recovery. **The operator must understand the
-system:** every choice is recorded with its alternatives and trade-offs.
-
-> **The name.** *Lagom* is a Swedish word for "not too little, not too much —
-> just enough". It is the design rule here: as much infrastructure as the data
+> **Why "Lagom"?** It is a Swedish word for "not too little, not too much,
+> just enough". That is the idea here: as much infrastructure as the data
 > needs, and no more.
 
-> **Status:** M3 in progress. One pipeline (USGS earthquakes: dlt, then dbt)
-> runs every 30 minutes in staging and prod on a single 8 GB node; the
-> platform was rebuilt on it in 20 minutes once the server existed, as a
-> disaster-recovery drill: everything from Git, the sealing key from its
-> backup, and the last 30 days of data re-loaded from the source. Next: Dagster and the SME-stack spike. See
-> [`docs/roadmap.md`](docs/roadmap.md) for what exists and what is
-> deliberately absent.
+## How it fits together
 
-## How it works
+```mermaid
+flowchart TB
+    src(["Public data<br/>APIs and event feeds"])
 
+    subgraph node["One small node, running k3s"]
+        direction LR
+        ing["Ingest<br/>dlt"] --> store[("Store<br/>bronze · silver · gold")] --> dbt["Transform<br/>dbt"]
+    end
+
+    site(["getlagom.app<br/>static dashboards"])
+
+    src --> node
+    node --> site
+    dag{{"Dagster<br/>orchestrates"}} -.-> node
+    git(["GitHub"]) -- "Argo CD syncs" --> node
+
+    classDef ext fill:#eef2ff,stroke:#6366f1,color:#1e1b4b
+    classDef core fill:#ecfdf5,stroke:#10b981,color:#064e3b
+    classDef side fill:#fff7ed,stroke:#f59e0b,color:#78350f
+    class src,site ext
+    class ing,store,dbt core
+    class dag,git side
+    style node fill:transparent,stroke:#94a3b8,stroke-width:2px,stroke-dasharray:6 4
 ```
-External sources  ->  Ingestion        ->  Postgres
-                      dlt / Redpanda       bronze / silver / gold, transformed by dbt
-```
 
-The proposed SME stack ([ADR-0023](docs/adr/0023-sme-stack-duckdb-on-ducklake.md)) keeps the data as Parquet
-files on Cloudflare R2 in DuckLake, with Postgres as the catalog and DuckDB as
-the engine. Until its spike passes, every layer lives in Postgres
-([ADR-0008](docs/adr/0008-postgres-for-all-layers.md)).
+Data comes in through ingestion jobs that start, do their work, and exit. It
+is stored in layers (raw, cleaned, modelled) and transformed with dbt.
+Dagster is set to schedule the work from the outside, and the public side
+will be a static site, so visitors never reach the cluster. Argo CD keeps the cluster in sync
+with this repository, so changes arrive through Git, not by hand.
 
-Dagster orchestrates from outside the flow. Argo CD reconciles the cluster from
-this repository. Readers see a static public site, getlagom.app, with no path to the cluster
-([ADR-0022](docs/adr/0022-platform-as-a-portfolio-of-architectures.md)). Other access goes through one of three channels —
-Tailscale for operators, Cloudflare Access for private content, signed URLs for
-bulk data.
+## The stack
 
-Full detail in [`docs/architecture.md`](docs/architecture.md).
-
-## Stack
-
-| Layer | Tool |
+| Layer | Tools |
 |---|---|
-| Kubernetes | k3s on one ARM node (Hetzner CAX21, 8 GB); a Raspberry Pi as edge agent (M6) |
-| GitOps | Argo CD |
-| Batch ingestion | dlt |
-| Event ingestion | Redpanda Connect |
-| Storage | Postgres, every layer (lakehouse deferred with a trigger) |
-| Transformation | dbt (`dbt-postgres`) |
+| Ingestion | dlt for APIs, Redpanda Connect for event streams |
+| Storage | Postgres today; DuckLake on Cloudflare R2, with Postgres as its catalog, being tested ([ADR-0023](docs/adr/0023-sme-stack-duckdb-on-ducklake.md)) |
+| Transformation | dbt, on Postgres or DuckDB |
 | Orchestration | Dagster |
-| Serving | Postgres |
-| Reporting | Evidence (static pages; built by an ephemeral job, nothing resident) |
+| Dashboards | Evidence, published as static pages on getlagom.app |
+| Platform | k3s on a single ARM node, Argo CD, Sealed Secrets, CloudNativePG, Tailscale |
 
-Every choice is recorded with its alternatives and trade-offs in
-[`docs/adr/`](docs/adr/).
+Each choice is written down with the alternatives it beat and the trade-offs it
+accepts, in [`docs/adr/`](docs/adr/). Heavier stacks (Iceberg, Spark, Trino)
+come later, as the comparison that shows where the small one stops.
 
-## Documentation
+## Learn more
 
-| Document | Read it when |
+| Read | For |
 |---|---|
-| [`CLAUDE.md`](CLAUDE.md) | always — operating rules for anyone working here |
-| [`docs/architecture.md`](docs/architecture.md) | before touching a component; it holds the runbook |
-| [`docs/roadmap.md`](docs/roadmap.md) | before adding a component |
-| [`docs/adr/`](docs/adr/) | to understand why something is the way it is |
-| [`docs/engineering-protocol.md`](docs/engineering-protocol.md) | before any task larger than a single file |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | before your first pull request |
+| [`docs/architecture.md`](docs/architecture.md) | how it is built, the memory budget, and the runbook |
+| [`docs/roadmap.md`](docs/roadmap.md) | what exists, what comes next, and what is left out on purpose |
+| [`docs/adr/`](docs/adr/) | why things are the way they are |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | the workflow, before a first pull request |
+| [`CLAUDE.md`](CLAUDE.md) and [`docs/engineering-protocol.md`](docs/engineering-protocol.md) | the working rules, for people and AI agents alike |
 
-Documentation is part of every change, not a follow-up — see
-[`CLAUDE.md`](CLAUDE.md) §5.
+## Running it
 
-## Getting started
-
-The node is provisioned and bootstrapped by hand, step by step, from the
-[runbook](docs/architecture.md#13-runbook) in `docs/architecture.md` — written
-from commands that were actually executed. From Argo CD onwards, everything
-reaches the cluster through a pull request.
+The [runbook](docs/architecture.md#13-runbook) takes an empty server to the
+platform as it stands, step by step, with commands that were actually run. After that,
+every change reaches the cluster through a pull request.
 
 ## Layout
 
-Divided by blast radius rather than by file type, so that adding a source or a
-product is additive — see [ADR-0006](docs/adr/0006-monorepo-layout.md).
-
 ```
-platform/            shared backbone — rarely changes, affects everything
-  infra/             k8s manifests, Argo CD applications, Helm values  (M1)
-  orchestration/     Dagster deployment and shared resources           (M3)
-  warehouse/         the single dbt project                            (M2)
-services/            workloads — change often, affect only themselves
-  <service>/         ingestion + Dagster assets + tests, self-contained
-products/            what a consumer sees
-  <product>/         the getlagom.app site, Evidence dashboards
-tools/               development and operational scripts
-docs/                architecture, protocol, ADRs, runbook
-.github/             CI: lint, types, tests, dbt parse, resource budget (M1); image builds, secret scan, promotion check (M2); manifest policy
-.claude/             reviewer and implementer agents; denied git commands — CONTRIBUTING.md
+platform/   the shared backbone: cluster manifests, Argo CD apps, the dbt project
+services/   one directory per data source: ingestion, its tests and image
+products/   what people see: the site and its dashboards
+tools/      CI checks and operational scripts
+docs/       architecture, roadmap, decisions (ADRs), runbook
 ```
 
-**Directories are a convention, not scaffolding.** Each is created by the
-milestone that fills it — the annotation above says which. Argo CD watches
-`platform/infra/` only, so nothing outside that path can change the cluster.
-
-## Tooling
-
-`uv` for Python packaging, `ruff` for lint and formatting, `mypy` for types,
-`sqlfluff` for SQL, `gitleaks` for secret scanning. Config files appear when the
-code they check does.
+Adding a source or a dashboard is additive: a new directory and its Argo CD
+Application ([ADR-0006](docs/adr/0006-monorepo-layout.md)).
 
 ## License
 
