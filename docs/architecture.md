@@ -699,7 +699,7 @@ the machine. **No auth key is involved**, so no credential passes through a
 script or a chat. The trade-off is that the step is interactive — fine for one
 node; an unattended rebuild would use a single-use, short-lived auth key.
 
-Then, in the Tailscale admin console: *Machines → <node-name> → Disable key
+Then, in the Tailscale admin console: *Machines →* `<node-name>` *→ Disable key
 expiry*. A device must re-authenticate every 180 days by default; on a server
 that silently drops it from the tailnet, and the cluster's API with it.
 
@@ -848,7 +848,7 @@ below, applied in the admin console (*Access controls*), replaces it:
 }
 ```
 
-Then *Machines → <node-name> → Edit ACL tags → `tag:lagom-node`*.
+Then *Machines →* `<node-name>` *→ Edit ACL tags →* `tag:lagom-node`.
 
 **Why it works.** A tagged machine belongs to its tag, not to a person, so rules
 name roles — operators reach Lagom nodes — instead of people. Anything not
@@ -910,7 +910,9 @@ The merge keeps the current context, so on a machine that already knew
 another cluster, `kubectl` without `--context` still talks to that one. While
 two clusters are in the file, **name the context on every command**:
 `--context <node-name>` for `kubectl` and `kubeseal`, `--kube-context
-<node-name>` for `helm`.
+<node-name>` for `helm`. The commands elsewhere in this runbook that carry no
+context assume the current one is the right cluster: add the flag to them, or
+switch first with `kubectl config use-context <node-name>`.
 
 This file is the **cluster-admin credential** — a client certificate with every
 right in the cluster. It never goes to Git or chat, `umask 077` keeps it
@@ -1064,7 +1066,7 @@ on 2026-10-28 the API server accepted it as it is. If it ever refuses
 `sed -E '/^[[:space:]]+(resourceVersion|uid|creationTimestamp):/d'`. Only if
 the controller was already running when the key arrived, restart it so it
 reloads its keys:
-`kubectl -n kube-system delete pod -l app.kubernetes.io/name=sealed-secrets`.
+`kubectl --context <node-name> -n kube-system delete pod -l app.kubernetes.io/name=sealed-secrets`.
 
 **Verify** once Argo CD has synced `sealed-secrets`: every `SealedSecret` is
 `SYNCED True`, and the controller's certificate is the one the backup was
@@ -1348,7 +1350,7 @@ next index:
   the sealed URLs decrypt with the same key on both. A check that stays *up*
   proves nothing about the new node: the old one's pings would hide its
   failures. Judge the new node by its `heartbeat` log, and power the old one
-  off as soon as the new one passes (first item of
+  off as soon as the new one passes (the *When* paragraph of
   [the checklist below](#retire-the-old-node)).
 - Both call the USGS API. Four requests every 30 minutes is far below any limit.
 
@@ -1429,7 +1431,7 @@ each, all from the new node). Delete only after that.
 2. **Hetzner — its firewall.** Open *Firewalls* and check *Resources*: delete
    the firewall only if the old server was its only resource. If the new node
    uses the same firewall, keep it.
-3. **Tailscale.** *Machines → <old-node-name> → Remove*.
+3. **Tailscale.** *Machines →* `<old-node-name>` *→ Remove*.
 4. **The operator's kubeconfig** — the old cluster's context, cluster and
    credential, then make the new one current:
 
