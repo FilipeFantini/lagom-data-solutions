@@ -243,8 +243,12 @@ The node that M3 needs, and the orchestration every showcase uses.
       ([runbook](architecture.md#backup-and-restore-m3))
 - [ ] Check backup retention on 2026-11-05: staging's 7-day retention must
       delete its first expired backup without error (ADR-0025 notes)
-- [ ] Dagster with Postgres metastore
-- [ ] dlt and dbt assets
+- [ ] Dagster with Postgres metastore, one instance per environment
+      ([ADR-0026](adr/0026-dagster-one-instance-per-environment.md)): the code
+      location first (image `lagom-orchestration`), then each environment's
+      instance, staging before prod
+- [ ] dlt and dbt assets — USGS on DuckLake, run by Dagster in staging and
+      prod; the CronJobs on Postgres stay until it has run a week in prod
 - [ ] Native failure alerting
 - [ ] `dbt test` in CI
 - [ ] Freshness threshold declared and asserted

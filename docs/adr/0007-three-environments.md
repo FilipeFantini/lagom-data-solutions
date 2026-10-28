@@ -3,7 +3,9 @@
 - **Status:** Accepted — partially superseded by [ADR-0008](0008-postgres-for-all-layers.md)
   (the `dev` environment's storage only) and by
   [ADR-0014](0014-develop-against-staging.md) (the `dev` environment as a whole), and by
-  [ADR-0015](0015-images-on-ghcr.md) (what triggers staging's jobs)
+  [ADR-0015](0015-images-on-ghcr.md) (what triggers staging's jobs), and by
+  [ADR-0026](0026-dagster-one-instance-per-environment.md) ("staging runs no
+  Dagster": each environment now runs its own)
 - **Note:** the 2.6 GB ceiling cited below was lowered to 2.2 GB by
   [ADR-0016](0016-ci-ceiling-2-2-gb.md)
 - **Date:** 2026-10-12

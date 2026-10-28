@@ -26,7 +26,7 @@ decision, consequences, and how to reverse it.
 | [0004](0004-table-format.md) | Open table format: Iceberg preferred, Delta as fallback | Proposed, deferred by 0008 |
 | [0005](0005-duckdb-and-postgres-roles.md) | DuckDB as compute engine, Postgres as operational spine | Accepted, partially superseded by 0008 |
 | [0006](0006-monorepo-layout.md) | Monorepo layout: platform, services, products | Accepted |
-| [0007](0007-three-environments.md) | Three environments: dev local, staging and prod on one node | Accepted, partially superseded by 0008, 0014 and 0015 |
+| [0007](0007-three-environments.md) | Three environments: dev local, staging and prod on one node | Accepted, partially superseded by 0008, 0014, 0015 and 0026 |
 | [0008](0008-postgres-for-all-layers.md) | Postgres for every layer until the lakehouse has a measured trigger | Accepted, partially superseded by 0014 |
 | [0009](0009-argocd-bootstrap-and-self-management.md) | Argo CD: pinned Helm chart, app of apps, self-managed | Accepted, decision 4 superseded by 0017 |
 | [0010](0010-sealed-secrets.md) | Sealed Secrets for secrets in Git, key renewal off | Accepted |
@@ -45,3 +45,4 @@ decision, consequences, and how to reverse it.
 | [0023](0023-sme-stack-duckdb-on-ducklake.md) | The SME stack: DuckDB on DuckLake, Postgres as catalog, data on R2 | Proposed |
 | [0024](0024-ci-ceiling-on-the-8-gb-node.md) | CI ceiling raised to 5.5 GB, measured on the 8 GB node | Accepted |
 | [0025](0025-postgres-backup-barman-cloud-to-r2.md) | Postgres backup: the Barman Cloud plugin to Cloudflare R2, staging first | Accepted; prod enabled before the retention check (notes) |
+| [0026](0026-dagster-one-instance-per-environment.md) | Dagster, one instance per environment, running USGS on DuckLake | Accepted |

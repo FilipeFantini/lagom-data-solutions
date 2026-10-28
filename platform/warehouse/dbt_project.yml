@@ -23,6 +23,13 @@ models:
       # The role is declared in both Postgres Clusters; if it is missing the
       # GRANT fails the build, loudly.
       # tests/gold_reader_privileges.sql asserts the result.
-      +grants:
-        select: ["gold_reader"]
-      +post-hook: "grant usage on schema {{ this.schema }} to gold_reader"
+      # Grants exist in Postgres only. On DuckLake read access is an R2 token
+      # and a catalog role instead (ADR-0023), so the lake target skips them.
+      +grants: "{{ {'select': ['gold_reader']} if target.type == 'postgres' else {} }}"
+      +post-hook: "{{ 'grant usage on schema ' ~ this.schema ~ ' to gold_reader' if target.type == 'postgres' else '' }}"
+
+data_tests:
+  lagom:
+    # Postgres only: DuckLake has no per-table grants (ADR-0023).
+    gold_reader_privileges:
+      +enabled: "{{ target.type == 'postgres' }}"

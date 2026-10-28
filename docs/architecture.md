@@ -218,9 +218,26 @@ to run it is in [`platform/warehouse/README.md`](../platform/warehouse/README.md
 Assets, lineage, backfill, declarative retries, native dbt and dlt integration.
 Metastore in Postgres, since the SQLite default does not serve multiple users.
 
-Until Dagster runs, each pipeline run reports success to Healthchecks.io, which
-e-mails the operator when a report is missing
-([ADR-0018](adr/0018-pipeline-heartbeat.md); runbook: *Pipeline heartbeat*).
+**One instance per environment** ([ADR-0026](adr/0026-dagster-one-instance-per-environment.md)),
+in the environment's namespace, with its metadata in a database `dagster` in
+that environment's Postgres, backed up with it. Runs are Kubernetes Jobs in
+the same namespace, so staging never reaches prod.
+
+**One code location for the platform**, the image `lagom-orchestration`
+([`platform/orchestration/`](../platform/orchestration/README.md)). It holds
+each service's assets (`services/<service>/assets/`) and the dbt project,
+whose models dagster-dbt turns into assets downstream of the sources they
+read. Its first content is USGS on DuckLake:
+
+- the job `usgs` every 30 minutes: dlt loads into DuckLake, then `dbt build`
+  runs on the `lake` target;
+- the job `lake_maintenance` once a day: it merges small files, expires
+  snapshots older than 7 days, and deletes the files nothing references.
+
+Until Dagster takes over the alarm, the CronJobs keep running and each run
+reports success to Healthchecks.io, which e-mails the operator when a report
+is missing ([ADR-0018](adr/0018-pipeline-heartbeat.md); runbook: *Pipeline
+heartbeat*).
 
 Airflow and Prefect are excluded on resident RAM.
 
@@ -322,11 +339,16 @@ outside this repository, or a rendered image without a tag or digest (this
 repository's own images need a digest); what it does not check is in
 [`tools/README.md`](../tools/README.md#manifest-policy-check).
 
-**Images.** Two, built by [`images.yml`](../.github/workflows/images.yml) on a
-native arm64 runner: `ghcr.io/filipefantini/lagom-usgs` (the dlt pipeline,
-[`services/usgs/Dockerfile`](../services/usgs/Dockerfile)) and
-`ghcr.io/filipefantini/lagom-warehouse` (`dbt build`,
-[`platform/warehouse/Dockerfile`](../platform/warehouse/Dockerfile)). A pull
+**Images.** Three, built by [`images.yml`](../.github/workflows/images.yml) on a
+native arm64 runner:
+
+- `ghcr.io/filipefantini/lagom-usgs`: the dlt pipeline,
+  [`services/usgs/Dockerfile`](../services/usgs/Dockerfile).
+- `ghcr.io/filipefantini/lagom-warehouse`: `dbt build`,
+  [`platform/warehouse/Dockerfile`](../platform/warehouse/Dockerfile).
+- `ghcr.io/filipefantini/lagom-orchestration`: the Dagster code location,
+  [`platform/orchestration/Dockerfile`](../platform/orchestration/Dockerfile).
+  It is built from the repository root. A pull
 request builds and smoke-tests them without pushing; a push to `main` publishes
 them tagged with the commit SHA, and the digest is printed in the run summary.
 Both are multi-stage (uv exists only in the build stage), pinned by digest at

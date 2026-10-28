@@ -27,6 +27,9 @@ select = ["E", "F", "I", "B", "UP"]
 
 [tool.mypy]
 strict = true
+# assets/ imports Dagster and is checked with the code location
+# (platform/orchestration), whose environment has it.
+exclude = ["(^|/)assets/"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

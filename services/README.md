@@ -19,5 +19,7 @@ with a new ADR.
 
 Checklist for adding one: [`../CONTRIBUTING.md`](../CONTRIBUTING.md).
 
-First service: [`usgs`](usgs/) (earthquakes), in M2. It has `ingestion/` and
-`tests/`; `assets/` arrives with Dagster in M3.
+First service: [`usgs`](usgs/) (earthquakes), in M2. Its `assets/` arrived
+with Dagster in M3 and are loaded by the platform's code location
+([`platform/orchestration/`](../platform/orchestration/README.md)), which also
+type-checks them, since they import Dagster.
