@@ -7,6 +7,11 @@ dependencies = [
     "dagster==1.13.27",
     "dagster-k8s==0.29.27",
     "dagster-postgres==0.29.27",
+    # SQLAlchemy 2.1 connects to "postgresql://" with psycopg 3 by default;
+    # dagster-postgres declares only psycopg2. Without this the code location
+    # cannot open Dagster's run storage (found on staging's first schedule tick,
+    # 2026-10-28).
+    "psycopg[binary]>=3.2",
     "dagster-dbt==0.29.27",
     "dlt[ducklake,s3,postgres]==1.31.0",
     "dbt-core==1.12.6",
