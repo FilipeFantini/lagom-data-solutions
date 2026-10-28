@@ -143,4 +143,5 @@ without rewriting it.
   (proposed).** The small/medium/big tiers become two, SME and big data; R2
   stops being a bridge to the site and holds the SME stack's data files; the
   dashboards are built in the cluster after each run, not in CI; Terraform
-  enters with the move to `lagom-shared-02`. The rest stands.
+  enters with the move to `lagom-shared-02` — withdrawn on 2026-10-28, see
+  ADR-0023's notes. The rest stands.
