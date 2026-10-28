@@ -226,7 +226,10 @@ The node that M3 needs, and the orchestration every showcase uses.
 - [x] Runbook: disaster recovery, written from the drill
 - [ ] Runbook: secret rotation — the drill rotated nothing, so it is written
       when a credential is first rotated
-- [ ] Measure the new node's overhead and set its CI ceiling, as ADR-0016 did
+- [x] Measure the new node's overhead and set its CI ceiling, as ADR-0016 did —
+      1,687 MiB outside Kubernetes, ceiling 5.5 GB
+      ([ADR-0024](adr/0024-ci-ceiling-on-the-8-gb-node.md)); re-measured after
+      three days of uptime
 - [ ] **Spike: the SME stack** — the USGS pipeline into DuckLake (Postgres
       catalog, data on R2) with dbt-duckdb; Evidence reading it; compaction of
       small files; memory and time against Postgres, including the Evidence

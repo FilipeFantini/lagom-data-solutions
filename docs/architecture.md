@@ -300,7 +300,7 @@ Three, decided in [ADR-0007](adr/0007-three-environments.md).
 | Environment | Where | What runs there |
 |---|---|---|
 | `dev` | code on the operator's machine, data in staging | dbt and dlt run from the machine's `uv` environments against the `lagom_dev` database in staging's Postgres, through `kubectl port-forward` over the tailnet; unit tests need no database; manifests are checked with a server-side dry run ([ADR-0014](adr/0014-develop-against-staging.md)); agents use `kubectl diff -n <namespace> -f`, since `apply` is denied to them ([CONTRIBUTING](../CONTRIBUTING.md#workflow)) |
-| `staging` | namespace on the node | own Postgres `Cluster` mirroring prod's configuration, holding two databases: `lagom` for staging's pipeline and `lagom_dev` for the developer, who cannot connect to `lagom`; own secrets; a ResourceQuota (768Mi of memory requests, 1536Mi of limits, 10 Pods) and a LimitRange ([`platform/infra/postgres-staging/`](../platform/infra/postgres-staging/)); the pipeline as one CronJob, `usgs-pipeline` ([`cronjob-usgs.yaml`](../platform/infra/postgres-staging/cronjob-usgs.yaml)): dlt, then dbt, as init containers, then a heartbeat ping to Healthchecks.io ([ADR-0018](adr/0018-pipeline-heartbeat.md)), applied by Argo CD from `main` and pinned to staging's image digests ([ADR-0015](adr/0015-images-on-ghcr.md)). **No Dagster** — two orchestrators exceed the ceiling |
+| `staging` | namespace on the node | own Postgres `Cluster` mirroring prod's configuration, holding two databases: `lagom` for staging's pipeline and `lagom_dev` for the developer, who cannot connect to `lagom`; own secrets; a ResourceQuota (768Mi of memory requests, 1536Mi of limits, 10 Pods) and a LimitRange ([`platform/infra/postgres-staging/`](../platform/infra/postgres-staging/)); the pipeline as one CronJob, `usgs-pipeline` ([`cronjob-usgs.yaml`](../platform/infra/postgres-staging/cronjob-usgs.yaml)): dlt, then dbt, as init containers, then a heartbeat ping to Healthchecks.io ([ADR-0018](adr/0018-pipeline-heartbeat.md)), applied by Argo CD from `main` and pinned to staging's image digests ([ADR-0015](adr/0015-images-on-ghcr.md)). **No Dagster** ([ADR-0007](adr/0007-three-environments.md)); on the 4 GB node a second orchestrator exceeded the ceiling, and on the 8 GB node that reason is to be revisited when Dagster enters |
 | `prod` | namespace on the node | the full stack |
 
 **Promotion** is by image digest: staging and prod each pin their own, so a new
@@ -456,17 +456,21 @@ RLS.
 
 ## 11. Resource budget
 
-The node shows **3.8 GB** of RAM to the OS (3817 MB; the rest of the nominal
-4 GB is reserved by firmware and kernel). These figures were measured on
-`lagom-shared-01`, the 4 GB node; the ceiling below still holds on
-`lagom-shared-02` (7741 MB visible) until its own overhead is measured, an
-M3 item in the [roadmap](roadmap.md). Two budgets share it, kept apart
-because they are enforced differently.
+The node, `lagom-shared-02`, shows **7,741 MiB** of RAM to the OS (the rest of
+the nominal 8 GB is reserved by firmware and kernel). Two budgets share it,
+kept apart because they are enforced differently.
 
 ### Node overhead — outside Kubernetes, enforced by nothing
 
-Measured on 2026-10-12 with the cluster idle and only k3s's own system pods
-running (RSS from `ps`):
+**On `lagom-shared-02`**, 2026-10-28, two hours after k3s started, 12 Pods
+running: **1,687 MiB** by RSS — `k3s-server` 1,022, `containerd` 200, 12 shims
+254, `tailscaled` 55, the rest of the OS ~156
+([ADR-0024](adr/0024-ci-ceiling-on-the-8-gb-node.md)). It is to be measured
+again after at least three days of uptime.
+
+**On `lagom-shared-01`**, the 4 GB node, the history behind those figures —
+measured from 2026-10-12, first with the cluster idle and only k3s's own
+system pods running (RSS from `ps`):
 
 | Process | Measured | Earlier estimate |
 |---|---|---|
@@ -480,26 +484,23 @@ Without a memory limit, Go lets the heap grow to about twice its live size and
 keeps idle memory from the OS; `GOMEMLIMIT` on every resident Go process is the
 largest lever found ([ADR-0011](adr/0011-memory-viability-on-4gb.md)).
 
-The estimate of 300 MB was the commonly quoted figure for k3s; on this node the
-server process alone is twice that, and the container runtime was missing from
+The estimate of 300 MB was the commonly quoted figure for k3s; on the 4 GB
+node the server process alone was twice that, and the container runtime was missing from
 the count. RSS overstates slightly because shared pages are counted per process;
 it is the conservative measure.
 
 ### Pod requests — the CI ceiling
 
-**Ceiling enforced in CI: 2.2 GB of declared requests.** A change that would
+**Ceiling enforced in CI: 5.5 GB of declared requests.** A change that would
 exceed it fails the build — see
 [`engineering-protocol.md`](engineering-protocol.md) §16.5. The arithmetic,
-from the overhead table above: 3.8 GB visible − ~1.5 GB outside Kubernetes
-(2026-10-17, by RSS) leaves ~2.3 GB for pods; the ceiling sits ~100 MB under
-that, and RSS overstates shared pages, so the real margin is larger
-([ADR-0016](adr/0016-ci-ceiling-2-2-gb.md), superseding the 2.6 GB of
-[ADR-0011](adr/0011-memory-viability-on-4gb.md)). M2 fits: 2,034 MiB with every
-ephemeral job counted as running at once, ~220 MiB to spare; **M3 as planned
-does not** (Dagster's 600 MB takes it ~380 MiB over), so
-the move to the 8 GB node was decided for M3
-([ADR-0020](adr/0020-move-to-the-8-gb-node.md)). This ceiling holds until the
-node is resized; the next one is measured on the new node.
+from the overhead above: 7,741 MiB visible − 1,687 MiB outside Kubernetes
+leaves ~6,050 MiB for pods; the ceiling (5,632 MiB) sits ~420 MiB under that,
+for k3s's growth over days and the shims of new Pods, which requests do not
+count ([ADR-0024](adr/0024-ci-ceiling-on-the-8-gb-node.md)). It was 2.2 GB on
+the 4 GB node ([ADR-0016](adr/0016-ci-ceiling-2-2-gb.md)), where M3 did not
+fit, hence the move ([ADR-0020](adr/0020-move-to-the-8-gb-node.md)). Today's
+total is 2,078 MiB; M3 with Dagster is about 2,680.
 
 **How CI enforces it.** [`tools/resource_budget.py`](../tools/resource_budget.py)
 runs on every pull request ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)).
@@ -528,13 +529,13 @@ adds that 70 MiB request as its allowance for components outside Git.
 | Postgres (prod `Cluster`, 1 instance) | 300 MB | request 300 MiB, limit 512 MiB; `shared_buffers` 96MB, `max_connections` 25, `work_mem` 4MB, `maintenance_work_mem` 32MB, `effective_cache_size` 256MB, instance manager `GOMEMLIMIT` 96MiB. Measured idle on 2026-10-16: pod working set 47 MiB, cgroup 55 MiB (25 anonymous, 25 page cache), instance manager ~62 MiB RSS including shared pages. The request is kept for dbt load, measured in M2. Counted by the CI check, which reads the `Cluster` object because the operator creates its Pods ([`platform/infra/postgres-prod/`](../platform/infra/postgres-prod/cluster.yaml)) |
 | Dagster | 600 MB | measured in a spike: ~550 MiB resident with real libraries ([ADR-0011](adr/0011-memory-viability-on-4gb.md)) |
 | **Core requests** | **~1.79 GB** | |
-| **Left within the ceiling for ephemeral jobs** | **~0.41 GB** | |
+| **Left within the ceiling for ephemeral jobs** | **~3.7 GB** | |
 
 Staging adds ~300 MB for its own Postgres
 ([ADR-0007](adr/0007-three-environments.md)): a second `Cluster` with the same
 request and limit as prod's, which the CI check counts like the first
 ([`platform/infra/postgres-staging/`](../platform/infra/postgres-staging/cluster.yaml)).
-That leaves **~0.25 GB** for jobs. Staging's ResourceQuota caps what its jobs
+That leaves **~3.4 GB** for jobs. Staging's ResourceQuota caps what its jobs
 can request at 768 MiB in all, Postgres included.
 dlt and dbt do not appear above: they are ephemeral jobs, and their requests
 count against what is left. In staging they are one Pod, the CronJob
@@ -546,7 +547,7 @@ are placed together, and a run started by hand can land on either. The CI
 check therefore adds every ephemeral job rather than taking the largest: until
 2026-10-19 it took the largest, which left out the second pipeline's 256 MiB
 and the 32 MiB Job that the Argo CD chart runs as a hook on its syncs. The
-total rose by 288 MiB, to 2,034 of the 2,253 MiB ceiling. The sum overstates
+total rose by 288 MiB, to 2,034 of the 2,253 MiB ceiling of the time. The sum overstates
 jobs whose schedules never meet, which is the safe error for a memory gate.
 The 256 MiB is a starting
 value. First scheduled run, 2026-10-18 20:30 (8 new events, 15 s): one
@@ -567,12 +568,12 @@ ephemeral job, measured in the SME-stack spike.
 | Grafana | 150 MB |
 | PgBouncer | 5 MB |
 | **Core + staging + additions** | **~2.6 GB of requests** |
-| **Left within the ceiling for ephemeral jobs** | **none — ~0.4 GB over** |
+| **Left within the ceiling for ephemeral jobs** | **~2.9 GB** |
 
-The full design no longer leaves meaningful room for jobs on this node. That is
-the measured cost of the overhead above, recorded here rather than discovered
-when the additions arrive. The move to a CAX21 (8 GB, one reboot) is decided for M3:
-[ADR-0020](adr/0020-move-to-the-8-gb-node.md).
+On the 4 GB node the full design left no room for jobs, which is why the
+platform moved to the CAX21 ([ADR-0020](adr/0020-move-to-the-8-gb-node.md)).
+On the 8 GB node it fits with about 2.9 GB to spare; that room is the margin
+the node allows, not a budget to fill (§1).
 
 ## 12. Accepted risks
 
@@ -785,8 +786,10 @@ and run `sudo systemctl daemon-reload && sudo systemctl restart k3s`.
 The figure is 900MiB on the 8 GB node too. `GOMEMLIMIT` bounds k3s's own heap,
 which grows with the objects in the cluster, not with the node's RAM; the
 cluster moved unchanged, so the figure that stopped GC thrash on 4 GB still
-fits. It is revisited with the new node's overhead measurement, by the check
-below.
+fits. Measured on 2026-10-28, two hours after k3s started: 115 garbage
+collections since start, no thrash
+([ADR-0024](adr/0024-ci-ceiling-on-the-8-gb-node.md)); re-checked with the
+three-day measurement, by the check below.
 
 **Check the limit still has headroom** whenever the cluster gains a component.
 If collections run several times per second and the node's CPU is near 100%

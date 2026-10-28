@@ -85,3 +85,5 @@ without rewriting it.
   12:14 UTC, rebuilt from Git by the runbook in 20 min 31 s; measurements and
   gaps are in the runbook's *Disaster recovery*. The 2.2 GB ceiling still
   holds until the CAX21's overhead is measured.
+- **2026-10-28 — measured.** The CAX21's overhead is 1,687 MiB outside
+  Kubernetes; the ceiling is 5.5 GB ([ADR-0024](0024-ci-ceiling-on-the-8-gb-node.md)).
