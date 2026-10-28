@@ -133,3 +133,14 @@ Cloudflare Pages' free plan. The node's cost is ADR-0020's.
 Reversal: each showcase is removed by deleting its directory and Application;
 the site is a separate build. Nothing in the backbone depends on the
 portfolio.
+
+## Notes after acceptance
+
+The text above is kept as accepted. These notes record what changed since,
+without rewriting it.
+
+- **2026-10-28 — under revision by [ADR-0023](0023-sme-stack-duckdb-on-ducklake.md)
+  (proposed).** The small/medium/big tiers become two, SME and big data; R2
+  stops being a bridge to the site and holds the SME stack's data files; the
+  dashboards are built in the cluster after each run, not in CI; Terraform
+  enters with the move to `lagom-shared-02`. The rest stands.
