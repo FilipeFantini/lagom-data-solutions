@@ -40,6 +40,7 @@ flowchart TB
     class src,site ext
     class ing,store,dbt core
     class dag,git side
+    style node fill:transparent,stroke:#94a3b8,stroke-width:2px,stroke-dasharray:6 4
 ```
 
 Data comes in through ingestion jobs that start, do their work, and exit. It
