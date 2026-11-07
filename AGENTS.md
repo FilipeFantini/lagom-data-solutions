@@ -102,10 +102,12 @@ Rules for keeping documentation alive:
   history to look consistent; the superseded ADR stays, marked as such.
 - **One source of truth.** State a fact once and link to it. If two documents
   would say the same thing, one of them links to the other.
-- **This repository is the source of truth.** The operator keeps a personal
-  Obsidian vault with learning notes and trade-off discussions. It is an index
-  and an extension of memory, not an authority — never defer to it, and never
-  treat a conflict as resolved in its favour.
+- **This repository is the source of truth.** Outside it, the team's one
+  documentation space is Notion: status, briefs, pending decisions, and site
+  drafts. Notion links to the repository and never restates it; where they
+  disagree, the repository wins and the Notion page is fixed. The operator's
+  Obsidian vault is a personal notebook — not a project source
+  ([ADR-0034](docs/adr/0034-notion-as-the-one-documentation-space-outside-the-repo.md)).
 - **Check a value before handing it on.** Before giving the operator a name,
   label, or setting taken from one document, read the ADRs it depends on. Two
   documents that disagree are a defect: point it out and propose the fix,

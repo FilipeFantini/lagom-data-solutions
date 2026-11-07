@@ -263,7 +263,10 @@ The node that M3 needs, and the orchestration every showcase uses.
       (from 2026-11-12) and has taken over the alarm
       ([ADR-0026](adr/0026-dagster-one-instance-per-environment.md),
       heartbeat)
-- [ ] Native failure alerting
+- [ ] Native failure alerting — a failure sensor that pings the check's
+      `/fail` at once, and a success heartbeat for runs that never start; one
+      new check per environment, staging first
+      ([ADR-0033](adr/0033-dagster-alerts-through-healthchecks.md), proposed)
 - [ ] `dbt test` in CI
 - [ ] Freshness threshold declared and asserted
 - [ ] Runbook: on-failure section
@@ -397,6 +400,10 @@ by its own trigger, like any other piece.
       work handed over as a patch. Any runner that passes the ADR's checks;
       Tucano first. Decided 2026-11-07
       ([ADR-0032](adr/0032-agents-in-credential-free-containers.md))
+- [ ] **Notion as the one documentation space outside the repository** —
+      status, briefs, pending decisions, and site drafts; it links to the
+      repository and never restates it. The Obsidian vault leaves the project
+      ([ADR-0034](adr/0034-notion-as-the-one-documentation-space-outside-the-repo.md), proposed)
 
 ## Repository layout
 
